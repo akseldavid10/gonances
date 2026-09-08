@@ -53,8 +53,8 @@ export async function POST(request: Request) {
       },
     });
 
-    // SECRET_KEY del .env
-    const secret = new TextEncoder().encode(process.env.SECRET_KEY);
+    // JWT_ACCESS_SECRET del .env
+    const secret = new TextEncoder().encode(process.env.JWT_ACCESS_SECRET);
 
     // Crear JWT firmado con HS256
     const accesstoken = await new SignJWT({
