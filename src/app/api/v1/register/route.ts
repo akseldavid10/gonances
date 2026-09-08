@@ -4,6 +4,13 @@ import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import { cookies } from "next/headers";
 
+const ACCESS_TOKEN_SECRET = new TextEncoder().encode(
+  process.env.JWT_ACCESS_SECRET!,
+);
+const REFRESH_TOKEN_SECRET = new TextEncoder().encode(
+  process.env.JWT_REFRESH_SECRET!,
+);
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -53,32 +60,42 @@ export async function POST(request: Request) {
       },
     });
 
-    // JWT_ACCESS_SECRET del .env
-    const secret = new TextEncoder().encode(process.env.JWT_ACCESS_SECRET);
+    const now = Math.floor(Date.now() / 1000);
 
-    // Crear JWT firmado con HS256
-    const accesstoken = await new SignJWT({
-      id: user.id.toString(),
+    const accessToken = await new SignJWT({
+      sub: user.id,
       email: user.email,
     })
-      .setProtectedHeader({
-        alg: "HS256",
-        typ: "JWT",
-      })
-      .setIssuedAt()
-      .setExpirationTime("30m")
-      .sign(secret);
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt(now)
+      .setExpirationTime(now + 30 * 60) // 30 min
+      .sign(ACCESS_TOKEN_SECRET);
 
-    const cookieStorage = await cookies();
+    // Refresh Token - 7 días
+    const refreshToken = await new SignJWT({
+      sub: user.id,
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt(now)
+      .setExpirationTime(now + 7 * 24 * 60 * 60) // 7 días
+      .sign(REFRESH_TOKEN_SECRET);
 
-    const isProduction = process.env.ENVIRONMENT === "prod";
+    const cookieStore = await cookies();
 
-    cookieStorage.set("accesstoken", accesstoken, {
-      httpOnly: isProduction,
-      secure: isProduction,
+    cookieStore.set("accessToken", accessToken, {
+      httpOnly: true,
+      secure: process.env.ENVIRONMENT === "prod",
       sameSite: "lax",
-      maxAge: 60 * 30,
       path: "/",
+      maxAge: 30 * 60, // 30 min en segundos
+    });
+
+    cookieStore.set("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.ENVIRONMENT === "prod",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60, // 7 días en segundos
     });
     // Respuesta
     return NextResponse.json(
