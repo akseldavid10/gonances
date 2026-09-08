@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     const now = Math.floor(Date.now() / 1000);
 
     // Access Token - 30 minutos
-    const accessToken = await new SignJWT({
+    const accesstoken = await new SignJWT({
       sub: user.id,
       email: user.email,
     })
@@ -58,6 +58,7 @@ export async function POST(request: Request) {
     // Refresh Token - 7 días
     const refreshToken = await new SignJWT({
       sub: user.id,
+      email: user.email,
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt(now)
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
 
     const cookieStore = await cookies();
 
-    cookieStore.set("accessToken", accessToken, {
+    cookieStore.set("accesstoken", accesstoken, {
       httpOnly: true,
       secure: process.env.ENVIRONMENT === "prod",
       sameSite: "lax",

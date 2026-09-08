@@ -62,7 +62,7 @@ export async function POST(request: Request) {
 
     const now = Math.floor(Date.now() / 1000);
 
-    const accessToken = await new SignJWT({
+    const accesstoken = await new SignJWT({
       sub: user.id,
       email: user.email,
     })
@@ -72,8 +72,9 @@ export async function POST(request: Request) {
       .sign(ACCESS_TOKEN_SECRET);
 
     // Refresh Token - 7 días
-    const refreshToken = await new SignJWT({
+    const refreshtoken = await new SignJWT({
       sub: user.id,
+      email: user.email,
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt(now)
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
 
     const cookieStore = await cookies();
 
-    cookieStore.set("accessToken", accessToken, {
+    cookieStore.set("accesstoken", accesstoken, {
       httpOnly: true,
       secure: process.env.ENVIRONMENT === "prod",
       sameSite: "lax",
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
       maxAge: 30 * 60, // 30 min en segundos
     });
 
-    cookieStore.set("refreshToken", refreshToken, {
+    cookieStore.set("refreshtoken", refreshtoken, {
       httpOnly: true,
       secure: process.env.ENVIRONMENT === "prod",
       sameSite: "lax",
