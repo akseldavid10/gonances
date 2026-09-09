@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import getInfoToken from "@/lib/getInfoToken";
+import bcrypt from "bcryptjs";
 
 export async function GET() {
   try {
@@ -58,6 +59,74 @@ export async function GET() {
 
     return NextResponse.json(
       { error: "Error al obtener el usuario" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PUT(request: Request) {}
+
+export async function DELETE(request: Request) {
+  try {
+    const payload = await getInfoToken();
+
+    if (!payload?.email || !payload?.sub) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
+    const { password } = await request.json();
+
+    if (!password) {
+      return NextResponse.json(
+        { error: "Falta la contraseña" },
+        { status: 400 },
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: payload.email as string },
+    });
+
+    if (!user || user.id !== payload.sub) {
+      return NextResponse.json(
+        { error: "Usuario no encontrado" },
+        { status: 404 },
+      );
+    }
+
+    if (!user.hashedPassword) {
+      return NextResponse.json(
+        {
+          error:
+            "Esta cuenta entra con Google y no tiene contraseña configurada",
+        },
+        { status: 400 },
+      );
+    }
+
+    const passwordMatches = await bcrypt.compare(password, user.hashedPassword);
+
+    if (!passwordMatches) {
+      return NextResponse.json(
+        { error: "Contraseña incorrecta" },
+        { status: 401 },
+      );
+    }
+
+    // El schema tiene onDelete: Cascade en categories y transactions,
+    // así que Prisma se encarga de borrar todo lo relacionado.
+    await prisma.user.delete({
+      where: { id: user.id },
+    });
+
+    const response = NextResponse.json({ success: true });
+    response.cookies.delete("token");
+
+    return response;
+  } catch (error) {
+    console.error("Error al eliminar cuenta:", error);
+    return NextResponse.json(
+      { error: "Error al eliminar la cuenta" },
       { status: 500 },
     );
   }

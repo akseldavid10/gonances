@@ -13,6 +13,7 @@ import { Panel } from "@/components/ui/panel";
 import { useToast } from "@/components/ui/toast";
 import { useCurrentUser } from "@/components/provider/user-provider";
 import { longDate } from "@/lib/format";
+import { useRouter } from "next/navigation";
 
 const tabs = [
   { id: "perfil", label: "Perfil" },
@@ -297,9 +298,47 @@ function AppearancePanel() {
 
 function DataPanel() {
   const toast = useToast();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState("");
+  const [password, setPassword] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const ready = confirm.trim().toUpperCase() === "ELIMINAR";
+
+  function closeModal() {
+    setOpen(false);
+    setConfirm("");
+    setPassword("");
+    setError(null);
+  }
+
+  async function onDelete() {
+    setError(null);
+    setDeleting(true);
+
+    try {
+      const res = await fetch("/api/v1/users/me", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setError(data?.error ?? "No se pudo eliminar la cuenta");
+        setDeleting(false);
+        return;
+      }
+
+      toast("Cuenta eliminada", "warn");
+      closeModal();
+      router.push("/");
+    } catch {
+      setError("No se pudo conectar con el servidor");
+      setDeleting(false);
+    }
+  }
 
   return (
     <div role="tabpanel" id="panel-datos" aria-labelledby="tab-datos">
@@ -317,44 +356,56 @@ function DataPanel() {
 
       <Modal
         open={open}
-        onClose={() => {
-          setOpen(false);
-          setConfirm("");
-        }}
+        onClose={closeModal}
         title="Esto borra tu libro entero"
         description="Se eliminan tu perfil, tus movimientos y tus categorías."
         width="sm"
       >
-        <Field label="Escribe ELIMINAR para confirmar" htmlFor="confirm-delete">
-          <Input
-            id="confirm-delete"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            autoComplete="off"
-            placeholder="ELIMINAR"
-          />
-        </Field>
-        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button
-            variant="outline"
-            onClick={() => {
-              setOpen(false);
-              setConfirm("");
-            }}
+        <div className="grid gap-4">
+          <Field
+            label="Escribe ELIMINAR para confirmar"
+            htmlFor="confirm-delete"
           >
+            <Input
+              id="confirm-delete"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              autoComplete="off"
+              placeholder="ELIMINAR"
+            />
+          </Field>
+          <Field
+            label="Escribe la contraseña actual para confirmar"
+            htmlFor="confirm-password"
+          >
+            <Input
+              id="confirm-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              placeholder="Contraseña"
+            />
+          </Field>
+        </div>
+
+        {error && (
+          <p className="mt-3 text-[14px] text-red-600" role="alert">
+            {error}
+          </p>
+        )}
+
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="outline" onClick={closeModal}>
             Conservar mi cuenta
           </Button>
           <Button
             variant="danger"
-            disabled={!ready}
-            onClick={() => {
-              toast("Cuenta eliminada", "warn");
-              setOpen(false);
-              setConfirm("");
-            }}
+            disabled={!ready || !password || deleting}
+            onClick={onDelete}
           >
             <Trash2 size={16} />
-            Eliminar definitivamente
+            {deleting ? "Eliminando…" : "Eliminar definitivamente"}
           </Button>
         </div>
       </Modal>

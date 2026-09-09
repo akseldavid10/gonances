@@ -21,19 +21,29 @@ export function Modal({
   const panel = useRef<HTMLDivElement>(null);
   const titleId = useId();
 
+  // Guardamos la última versión de onClose sin que dispare el efecto de abajo.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   useEffect(() => {
     if (!open) return;
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
     };
     document.addEventListener("keydown", onKey);
 
     const previous = document.activeElement as HTMLElement | null;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+
+    // Excluimos el botón de cerrar para no robarle el foco al primer campo real.
     panel.current
-      ?.querySelector<HTMLElement>("input, select, textarea, button")
+      ?.querySelector<HTMLElement>(
+        "[data-modal-body] input, [data-modal-body] select, [data-modal-body] textarea, [data-modal-body] button",
+      )
       ?.focus();
 
     return () => {
@@ -41,7 +51,9 @@ export function Modal({
       document.body.style.overflow = overflow;
       previous?.focus();
     };
-  }, [open, onClose]);
+    // Solo abrir/cerrar dispara esto, no cada render con una nueva referencia de onClose.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: onClose se lee via ref
+  }, [open]);
 
   if (!open) return null;
 
@@ -81,7 +93,9 @@ export function Modal({
             <X size={18} />
           </button>
         </div>
-        <div className="px-5 py-5 sm:px-6">{children}</div>
+        <div data-modal-body className="px-5 py-5 sm:px-6">
+          {children}
+        </div>
       </div>
       <style>{`@keyframes modal-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}`}</style>
     </div>
