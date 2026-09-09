@@ -2,19 +2,43 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type SubmitEvent, useState } from "react";
+import { SubmitEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 
 export function LoginForm() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function onSubmit(e: SubmitEvent<HTMLFormElement>) {
+  async function onSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError(null);
     setPending(true);
-    // Sin backend todavía: la demo entra directo al panel de ejemplo.
-    router.push("/dashboard");
+
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get("email");
+    const password = formData.get("password");
+
+    try {
+      const res = await fetch("/api/v1/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setError(data?.error ?? "Correo o contraseña incorrectos");
+        setPending(false);
+        return;
+      }
+
+      router.push("/dashboard");
+    } catch {
+      setError("No se pudo conectar con el servidor");
+      setPending(false);
+    }
   }
 
   return (
@@ -56,6 +80,11 @@ export function LoginForm() {
           ¿Olvidaste tu contraseña?
         </Link>
       </div>
+      {error && (
+        <p className="text-[14px] text-red-600" role="alert">
+          {error}
+        </p>
+      )}
       <Button
         type="submit"
         size="lg"

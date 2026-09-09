@@ -11,7 +11,7 @@ import { Field, Input } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { Panel } from "@/components/ui/panel";
 import { useToast } from "@/components/ui/toast";
-import { currentUser } from "@/lib/data";
+import { useCurrentUser } from "@/components/provider/user-provider";
 import { longDate } from "@/lib/format";
 
 const tabs = [
@@ -72,6 +72,16 @@ function ProfilePanel() {
     toast("Perfil actualizado");
   }
 
+  const { currentUser, loading } = useCurrentUser();
+
+  if (loading) {
+    return <div>Cargando...</div>;
+  }
+
+  if (!currentUser) {
+    return <div>No autenticado ProfilePanel onSubmit</div>;
+  }
+
   return (
     <div role="tabpanel" id="panel-perfil" aria-labelledby="tab-perfil">
       <Panel title="Tu perfil">
@@ -91,7 +101,11 @@ function ProfilePanel() {
           </div>
 
           <Field label="Nombre completo" htmlFor="full-name">
-            <Input id="full-name" defaultValue={currentUser.name} required />
+            <Input
+              id="full-name"
+              defaultValue={currentUser.username}
+              required
+            />
           </Field>
 
           <Field
@@ -123,6 +137,16 @@ function ProfilePanel() {
 
 function SecurityPanel() {
   const toast = useToast();
+  const { currentUser, loading } = useCurrentUser();
+
+  if (loading) {
+    return <div>Cargando...</div>;
+  }
+
+  if (!currentUser) {
+    return <div>No autenticado SecurityPanel</div>;
+  }
+
   const isGoogle = currentUser.authMethod === "google";
 
   function onSubmit(e: SubmitEvent<HTMLFormElement>) {

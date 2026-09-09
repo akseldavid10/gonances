@@ -1,40 +1,29 @@
 // app/api/users/me/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
-import { cookies } from "next/headers";
+import getInfoToken from "@/lib/getInfoToken";
 
 export async function GET() {
   try {
-    const accesstoken = (await cookies()).get("accesstoken")?.value;
+    const payload = await getInfoToken();
 
-    if (!accesstoken) {
+    if (!payload) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
-    const secret = new TextEncoder().encode(process.env.JWT_ACCESS_SECRET);
-
-    let payload;
-    try {
-      const result = await jwtVerify(accesstoken, secret);
-      payload = result.payload;
-    } catch {
-      return NextResponse.json(
-        { error: "Token inválido o expirado" },
-        { status: 401 },
-      );
+    if (!payload.sub) {
+      return NextResponse.json({ error: "Token inválido" }, { status: 401 });
     }
 
-    const userId = payload.sub as string;
-
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: {
+        id: payload.sub,
+      },
       select: {
-        id: true,
         email: true,
         username: true,
-        avatarUrl: true,
         createdAt: true,
+        metodoAutenticacion: true,
       },
     });
 
@@ -45,14 +34,28 @@ export async function GET() {
       );
     }
 
+    // Generar iniciales a partir del username
+    const initials = user.username
+      .trim()
+      .split(/\s+/)
+      .map((word) => word[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+
+    console.log("todo termino bien");
     return NextResponse.json({
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      avatar_url: user.avatarUrl,
-      created_at: user.createdAt,
+      user: {
+        initials,
+        username: user.username,
+        email: user.email,
+        authMethod: user.metodoAutenticacion,
+        memberSince: user.createdAt.toISOString().split("T")[0],
+      },
     });
   } catch (error) {
+    console.error("Error al obtener el usuario:", error);
+
     return NextResponse.json(
       { error: "Error al obtener el usuario" },
       { status: 500 },

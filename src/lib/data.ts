@@ -292,15 +292,6 @@ function buildTransactions(): Transaction[] {
 
 export const transactions: Transaction[] = buildTransactions();
 
-export const currentUser = {
-  name: "Aksel Rivas",
-  firstName: "Aksel",
-  email: "aksel@gonances.app",
-  initials: "AR",
-  memberSince: "2026-01-12",
-  authMethod: "google" as "google" | "local",
-};
-
 /* ── Agregados que hoy calcula el cliente y mañana devolverá /analytics ── */
 
 export function inMonth(tx: Transaction, year: number, month: number) {

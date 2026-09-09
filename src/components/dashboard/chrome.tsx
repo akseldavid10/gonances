@@ -18,8 +18,7 @@ import { NewTransactionModal } from "@/components/dashboard/new-transaction-moda
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/ui/logo";
 import { ToastProvider } from "@/components/ui/toast";
-import { currentUser } from "@/lib/data";
-
+import { useCurrentUser } from "../provider/user-provider";
 const nav = [
   { href: "/dashboard", label: "Panel", icon: ChartPie },
   { href: "/transactions", label: "Transacciones", icon: CreditCard },
@@ -38,6 +37,16 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
   useEffect(() => {
     setDrawerOpen(false);
   }, [pathname]);
+
+  const { currentUser, loading } = useCurrentUser();
+
+  if (loading) {
+    return <div>Cargando...</div>;
+  }
+
+  if (!currentUser) {
+    return <div>No autenticado DashBoardChrome</div>;
+  }
 
   return (
     <ToastProvider>
@@ -60,7 +69,7 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
             </button>
 
             <p className="hidden text-[15px] text-ink sm:block">
-              Hola, {currentUser.firstName}
+              Hola, {currentUser.username}
             </p>
 
             <div className="ml-auto flex items-center gap-3">
@@ -72,7 +81,7 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
                 href="/settings"
                 className="flex size-9 items-center justify-center rounded-full border border-rule bg-sheet text-[13px] font-semibold text-ink"
                 aria-label="Tu perfil"
-                title={currentUser.name}
+                title={currentUser.username}
               >
                 {currentUser.initials}
               </Link>
@@ -102,6 +111,19 @@ function Sidebar({
   drawerOpen: boolean;
   onClose: () => void;
 }) {
+  const [currentUser, setCurrentUser] = useState(null);
+
+  const clearUser = () => {
+    setCurrentUser(null);
+  };
+
+  async function handleLogout() {
+    await fetch("/api/v1/auth/logout", {
+      method: "POST",
+    });
+
+    clearUser();
+  }
   return (
     <>
       {drawerOpen ? (
@@ -158,10 +180,10 @@ function Sidebar({
         <div className="border-t border-inverse-ink/15 p-3">
           <Link
             href="/"
+            onClick={() => handleLogout()}
             className="flex items-center gap-3 rounded px-3 py-2.5 text-[14px] text-inverse-ink/65 transition-colors hover:bg-inverse-ink/5 hover:text-inverse-ink"
           >
-            <LogOut size={17} strokeWidth={1.75} />
-            Cerrar sesión
+            <LogOut size={17} strokeWidth={1.75} /> Cerrar sesión
           </Link>
         </div>
       </div>
