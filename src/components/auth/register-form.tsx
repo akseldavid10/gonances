@@ -3,7 +3,7 @@
 import { Check } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type SubmitEvent, useState } from "react";
+import { SubmitEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 
@@ -20,18 +20,45 @@ export function RegisterForm() {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const passed = rules.filter((r) => r.test(password)).length;
   const mismatch = confirm.length > 0 && confirm !== password;
-  const ready = passed === rules.length && !mismatch && confirm.length > 0;
+  const ready =
+    passed === rules.length && !mismatch && confirm.length > 0 && termsAccepted;
 
-  function onSubmit(e: SubmitEvent<HTMLFormElement>) {
+  async function onSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!ready) return;
+
+    setError(null);
     setPending(true);
-    // Sin backend todavía: la demo entra directo al panel de ejemplo.
-    router.push("/dashboard");
+
+    const formData = new FormData(e.currentTarget);
+    const username = formData.get("name");
+    const email = formData.get("email");
+
+    try {
+      const res = await fetch("/api/v1/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, email, password }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setError(data?.error ?? "No se pudo crear la cuenta");
+        setPending(false);
+        return;
+      }
+
+      router.push("/dashboard");
+    } catch {
+      setError("No se pudo conectar con el servidor");
+      setPending(false);
+    }
   }
 
   return (
@@ -122,6 +149,8 @@ export function RegisterForm() {
           type="checkbox"
           name="terms"
           required
+          checked={termsAccepted}
+          onChange={(e) => setTermsAccepted(e.target.checked)}
           className="mt-0.5 size-4 accent-ink"
         />
         <span>
@@ -140,11 +169,17 @@ export function RegisterForm() {
         </span>
       </label>
 
+      {error && (
+        <p className="text-[14px] text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+
       <Button
         type="submit"
         size="lg"
         className="mt-1 w-full"
-        disabled={pending}
+        disabled={pending || !ready}
       >
         {pending ? "Creando tu libro…" : "Crear mi cuenta"}
       </Button>
