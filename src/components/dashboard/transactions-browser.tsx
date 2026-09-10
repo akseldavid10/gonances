@@ -8,7 +8,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { NewTransactionModal } from "@/components/dashboard/new-transaction-modal";
 import { Button } from "@/components/ui/button";
 import { CategoryStamp } from "@/components/ui/category-icon";
@@ -32,7 +32,7 @@ const ranges: { value: RangeFilter; label: string }[] = [
 
 function withinRange(date: string, range: RangeFilter) {
   if (range === "all") return true;
-  const d = new Date(`${date}T12:00:00`);
+  const d = new Date(date);
   const now = new Date();
   if (range === "month") {
     return (
@@ -49,8 +49,12 @@ function withinRange(date: string, range: RangeFilter) {
   return d >= start;
 }
 
-export function TransactionsBrowser({ items }: { items: Transaction[] }) {
+export function TransactionsBrowser() {
   const toast = useToast();
+  const [items, setItems] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [query, setQuery] = useState("");
   const [type, setType] = useState<TypeFilter>("ALL");
   const [range, setRange] = useState<RangeFilter>("month");
@@ -58,6 +62,44 @@ export function TransactionsBrowser({ items }: { items: Transaction[] }) {
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Transaction | null>(null);
+
+  // Pide las transacciones al API. El endpoint saca el usuario (email/sub)
+  // que aquí no hay que mandar nada más que el fetch.
+  const fetchTransactions = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("api/v1/transactions", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Error ${res.status} al pedir movimientos`);
+      }
+
+      // El endpoint regresa { items, total, page, pages }, no un array plano.
+      const data: {
+        items: Transaction[];
+        total: number;
+        page: number;
+        pages: number;
+      } = await res.json();
+      setItems(Array.isArray(data.items) ? data.items : []);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudieron cargar los movimientos",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -87,9 +129,24 @@ export function TransactionsBrowser({ items }: { items: Transaction[] }) {
     };
   }
 
+  // Después de crear/editar/borrar hay que volver a pedir la lista
+  // para que la tabla quede sincronizada con lo que quedó en la DB.
+  async function handleDelete(t: Transaction) {
+    try {
+      const res = await fetch(`api/v1/transactions/?id=${t.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("No se pudo eliminar");
+      toast("Movimiento eliminado");
+      setDeleting(null);
+      fetchTransactions();
+    } catch {
+      toast("No se pudo eliminar el movimiento");
+    }
+  }
+
   return (
     <>
-      {/* Barra de control: buscar, tipo y rango en una sola fila. */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative min-w-55 flex-1">
           <Search
@@ -180,64 +237,84 @@ export function TransactionsBrowser({ items }: { items: Transaction[] }) {
               </tr>
             </thead>
             <tbody>
-              {visible.map((t) => {
-                const cat = categoryById(t.categoryId);
-                return (
-                  <tr
-                    key={t.id}
-                    className="border-t border-rule-soft transition-colors even:bg-band/45 hover:bg-band/80"
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-5 py-14 text-center text-[14px] text-ink-soft"
                   >
-                    <td className="px-4 py-3 align-middle text-[13px] whitespace-nowrap text-ink-faint sm:px-5">
-                      {shortDate(t.date)}
-                    </td>
-                    <td className="py-3 align-middle text-[14px] text-ink">
-                      {t.description}
-                    </td>
-                    <td className="px-4 py-3 align-middle">
-                      <span className="flex items-center gap-2.5 whitespace-nowrap">
-                        <CategoryStamp
-                          icon={cat.icon}
-                          color={cat.color}
-                          size={24}
-                        />
-                        <span className="text-[14px] text-ink-soft">
-                          {cat.name}
-                        </span>
-                      </span>
-                    </td>
-                    <td
-                      className={`num px-4 py-3 text-right align-middle text-[14px] whitespace-nowrap ${
-                        t.type === "INCOME" ? "text-income" : "text-expense"
-                      }`}
+                    Cargando movimientos...
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-5 py-14 text-center text-[14px] text-expense"
+                  >
+                    {error}
+                  </td>
+                </tr>
+              ) : (
+                visible.map((t) => {
+                  const cat = categoryById(t.categoryId);
+                  return (
+                    <tr
+                      key={t.id}
+                      className="border-t border-rule-soft transition-colors even:bg-band/45 hover:bg-band/80"
                     >
-                      {signedMoney(t.amount, t.type)}
-                    </td>
-                    <td className="px-4 py-3 text-right align-middle whitespace-nowrap sm:px-5">
-                      <button
-                        type="button"
-                        onClick={() => setEditing(t)}
-                        aria-label={`Editar ${t.description}`}
-                        className="rounded p-1.5 text-ink-faint hover:bg-band hover:text-ink"
+                      <td className="px-4 py-3 align-middle text-[13px] whitespace-nowrap text-ink-faint sm:px-5">
+                        {shortDate(t.date)}
+                      </td>
+                      <td className="py-3 align-middle text-[14px] text-ink">
+                        {t.description}
+                      </td>
+                      <td className="px-4 py-3 align-middle">
+                        <span className="flex items-center gap-2.5 whitespace-nowrap">
+                          <CategoryStamp
+                            icon={cat.icon}
+                            color={cat.color}
+                            size={24}
+                          />
+                          <span className="text-[14px] text-ink-soft">
+                            {cat.name}
+                          </span>
+                        </span>
+                      </td>
+                      <td
+                        className={`num px-4 py-3 text-right align-middle text-[14px] whitespace-nowrap ${
+                          t.type === "INCOME" ? "text-income" : "text-expense"
+                        }`}
                       >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleting(t)}
-                        aria-label={`Eliminar ${t.description}`}
-                        className="ml-1 rounded p-1.5 text-ink-faint hover:bg-expense-tint hover:text-expense"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+                        {signedMoney(t.amount, t.type)}
+                      </td>
+                      <td className="px-4 py-3 text-right align-middle whitespace-nowrap sm:px-5">
+                        <button
+                          type="button"
+                          onClick={() => setEditing(t)}
+                          aria-label={`Editar ${t.description}`}
+                          className="rounded p-1.5 text-ink-faint hover:bg-band hover:text-ink"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleting(t)}
+                          aria-label={`Eliminar ${t.description}`}
+                          className="ml-1 rounded p-1.5 text-ink-faint hover:bg-expense-tint hover:text-expense"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
 
-        {visible.length === 0 ? (
+        {!loading && !error && visible.length === 0 ? (
           <div className="px-5 py-14 text-center">
             <p className="text-[15px] text-ink">
               No hay movimientos con ese filtro.
@@ -250,7 +327,7 @@ export function TransactionsBrowser({ items }: { items: Transaction[] }) {
               Agregar movimiento
             </Button>
           </div>
-        ) : (
+        ) : !loading && !error ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rule px-4 py-3 sm:px-5">
             <p className="text-[13px] text-ink-faint">
               {filtered.length} movimientos, saldo del filtro{" "}
@@ -280,14 +357,25 @@ export function TransactionsBrowser({ items }: { items: Transaction[] }) {
               </Button>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
 
-      <NewTransactionModal open={creating} onClose={() => setCreating(false)} />
+      <NewTransactionModal
+        open={creating}
+        onClose={() => setCreating(false)}
+        onSaved={() => {
+          setCreating(false);
+          fetchTransactions();
+        }}
+      />
       <NewTransactionModal
         open={editing !== null}
         editing={editing}
         onClose={() => setEditing(null)}
+        onSaved={() => {
+          setEditing(null);
+          fetchTransactions();
+        }}
       />
 
       <Modal
@@ -299,11 +387,11 @@ export function TransactionsBrowser({ items }: { items: Transaction[] }) {
         {deleting ? (
           <>
             <p className="text-[15px] leading-relaxed text-ink-soft">
-              Vas a borrar{" "}
+              Vas a borrar una transacción de tipo{" "}
               <strong className="font-semibold text-ink">
-                {deleting.description}
+                {deleting.type}
               </strong>{" "}
-              de {longDate(deleting.date)} por{" "}
+              hecha el {longDate(deleting.date)} por un valor de{" "}
               <span className="num text-ink">{money(deleting.amount)}</span>. No
               se puede deshacer.
             </p>
@@ -311,13 +399,7 @@ export function TransactionsBrowser({ items }: { items: Transaction[] }) {
               <Button variant="outline" onClick={() => setDeleting(null)}>
                 Conservar
               </Button>
-              <Button
-                variant="danger"
-                onClick={() => {
-                  toast("Movimiento eliminado");
-                  setDeleting(null);
-                }}
-              >
+              <Button variant="danger" onClick={() => handleDelete(deleting)}>
                 <Trash2 size={16} />
                 Eliminar
               </Button>

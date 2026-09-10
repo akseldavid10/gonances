@@ -219,3 +219,71 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    // 1. Obtener usuario desde el JWT
+    const payload = await getInfoToken();
+
+    if (!payload?.sub) {
+      return NextResponse.json({ message: "Token inválido" }, { status: 401 });
+    }
+
+    // 2. Buscar usuario
+    const user = await prisma.user.findUnique({
+      where: { id: payload.sub },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { message: "Usuario no encontrado" },
+        { status: 404 },
+      );
+    }
+
+    // 3. Obtener el ID de la transacción
+    const { searchParams } = new URL(req.url);
+    const transactionId = searchParams.get("id");
+    console.log(transactionId);
+
+    if (!transactionId) {
+      return NextResponse.json(
+        { message: "El parámetro id es requerido" },
+        { status: 400 },
+      );
+    }
+
+    // 4. Buscar la transacción y comprobar que pertenece al usuario
+    const transaction = await prisma.transaction.findFirst({
+      where: {
+        id: transactionId,
+        userId: user.id,
+      },
+    });
+
+    if (!transaction) {
+      return NextResponse.json(
+        { message: "Transacción no encontrada" },
+        { status: 404 },
+      );
+    }
+
+    // 5. Eliminar la transacción
+    await prisma.transaction.delete({
+      where: {
+        id: transaction.id,
+      },
+    });
+
+    // 6. Responder
+    return NextResponse.json({
+      message: "Transacción eliminada correctamente",
+      id: transaction.id,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { message: "Error interno del servidor" },
+      { status: 500 },
+    );
+  }
+}

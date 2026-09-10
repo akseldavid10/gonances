@@ -57,13 +57,13 @@ const MONTHS_SHORT = [
 
 /** 14 mar */
 export function shortDate(iso: string): string {
-  const d = new Date(`${iso}T12:00:00`);
+  const d = new Date(iso);
   return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
 }
 
 /** 14 de marzo de 2026 */
 export function longDate(iso: string): string {
-  const d = new Date(`${iso}T12:00:00`);
+  const d = new Date(iso);
   return `${d.getDate()} de ${MONTHS[d.getMonth()]} de ${d.getFullYear()}`;
 }
 

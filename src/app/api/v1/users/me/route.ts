@@ -44,7 +44,6 @@ export async function GET() {
       .slice(0, 2)
       .toUpperCase();
 
-    console.log("todo termino bien");
     return NextResponse.json({
       user: {
         initials,
