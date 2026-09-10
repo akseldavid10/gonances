@@ -5,17 +5,6 @@ import { MovementType, Prisma } from "@/generated/prisma";
 
 export async function GET(req: NextRequest) {
   try {
-    // 1. Validar JWT
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.replace("Bearer ", "");
-
-    if (!token) {
-      return NextResponse.json(
-        { message: "Token no proporcionado" },
-        { status: 401 },
-      );
-    }
-
     const payload = await getInfoToken(); // { email, sub }
     if (!payload?.sub) {
       return NextResponse.json({ message: "Token inválido" }, { status: 401 });
@@ -96,6 +85,132 @@ export async function GET(req: NextRequest) {
       page,
       pages: Math.ceil(total / limit),
     });
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json(
+      { message: "Error interno del servidor" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const payload = await getInfoToken(); // { email, sub }
+    if (!payload?.sub) {
+      return NextResponse.json({ message: "Token inválido" }, { status: 401 });
+    }
+
+    // 2. Buscar usuario en base de datos
+    const user = await prisma.user.findUnique({
+      where: { id: payload.sub },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { message: "Usuario no encontrado" },
+        { status: 404 },
+      );
+    }
+
+    // 3. Leer y validar body
+    const body = await req.json();
+    const { amount, type, description, date, category_id } = body;
+
+    if (amount === undefined || amount === null) {
+      return NextResponse.json(
+        { message: "El campo amount es requerido" },
+        { status: 400 },
+      );
+    }
+
+    let parsedAmount = undefined;
+
+    try {
+      parsedAmount = Number(amount);
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        return NextResponse.json(
+          { message: "amount debe ser un número mayor a 0" },
+          { status: 400 },
+        );
+      }
+    } catch (error) {
+      return NextResponse.json(
+        { message: "amount debe ser un número" },
+        { status: 400 },
+      );
+    }
+
+    if (!type || !Object.values(MovementType).includes(type)) {
+      return NextResponse.json(
+        { message: "type debe ser INCOME o EXPENSE" },
+        { status: 400 },
+      );
+    }
+
+    if (!date || isNaN(new Date(date).getTime())) {
+      return NextResponse.json(
+        { message: "date es requerido y debe ser una fecha válida" },
+        { status: 400 },
+      );
+    }
+
+    if (!category_id) {
+      return NextResponse.json(
+        { message: "category_id es requerido" },
+        { status: 400 },
+      );
+    }
+
+    // 4. Verificar que la categoría exista, sea del usuario (o global) y coincida el tipo
+    const category = await prisma.category.findFirst({
+      where: {
+        id: category_id,
+        OR: [{ userId: user.id }, { userId: null }],
+      },
+    });
+
+    if (!category) {
+      return NextResponse.json(
+        { message: "Categoría no encontrada" },
+        { status: 404 },
+      );
+    }
+
+    if (category.type !== type) {
+      return NextResponse.json(
+        {
+          message: `La categoría es de tipo ${category.type}, no coincide con type=${type}`,
+        },
+        { status: 400 },
+      );
+    }
+
+    // 5. Crear transacción
+    const transaction = await prisma.transaction.create({
+      data: {
+        amount: parsedAmount,
+        type,
+        description: description ?? null,
+        date: new Date(date),
+        userId: user.id,
+        categoryId: category_id,
+      },
+    });
+
+    // 6. Responder
+    return NextResponse.json(
+      {
+        id: transaction.id,
+        amount: transaction.amount.toNumber(),
+        type: transaction.type,
+        description: transaction.description,
+        date: transaction.date,
+        category_id: transaction.categoryId,
+        created_at: transaction.createdAt,
+      },
+      { status: 201 },
+    );
   } catch (error) {
     console.error(error);
     return NextResponse.json(
