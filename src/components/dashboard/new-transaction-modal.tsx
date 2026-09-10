@@ -18,14 +18,17 @@ export function NewTransactionModal({
   open,
   onClose,
   editing,
+  onSaved,
 }: {
   open: boolean;
   onClose: () => void;
   editing?: Transaction | null;
+  onSaved?: () => void; // para refrescar la lista de transacciones tras guardar
 }) {
   const toast = useToast();
   const [type, setType] = useState<TxType>("EXPENSE");
   const [categoryId, setCategoryId] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -35,11 +38,59 @@ export function NewTransactionModal({
 
   const options = categories.filter((c) => c.type === type);
 
-  function onSubmit(e: SubmitEvent<HTMLFormElement>) {
+  async function onSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
-    // Sin backend: la demo confirma y cierra. Aquí irá POST/PUT /transactions.
-    toast(editing ? "Movimiento actualizado" : "Movimiento guardado");
-    onClose();
+
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+
+    const rawAmount = String(formData.get("amount") ?? "").replace(",", ".");
+    const amount = Number(rawAmount);
+
+    if (isNaN(amount) || amount <= 0) {
+      toast("El monto debe ser un número mayor a 0");
+      return;
+    }
+
+    const payload = {
+      amount,
+      type,
+      description: (formData.get("description") as string) || null,
+      date: formData.get("date") as string,
+      category_id: categoryId,
+    };
+
+    setIsSubmitting(true);
+
+    try {
+      const url = editing
+        ? `/api/v1/transactions/${editing.id}`
+        : "/api/v1/transactions";
+      const method = editing ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errorBody = await res.json().catch(() => null);
+        toast(errorBody?.message ?? "No se pudo guardar el movimiento");
+        return;
+      }
+
+      toast(editing ? "Movimiento actualizado" : "Movimiento guardado");
+      onSaved?.();
+      onClose();
+    } catch (err) {
+      console.error(err);
+      toast("Error de conexión, intenta de nuevo");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -156,11 +207,15 @@ export function NewTransactionModal({
         </Field>
 
         <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancelar
           </Button>
-          <Button type="submit">
-            {editing ? "Guardar cambios" : "Guardar movimiento"}
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting
+              ? "Guardando..."
+              : editing
+                ? "Guardar cambios"
+                : "Guardar movimiento"}
           </Button>
         </div>
       </form>

@@ -90,30 +90,6 @@ export const categories: Category[] = [
     color: "#4d7a5f",
     isCustom: false,
   },
-  {
-    id: "c-pets",
-    name: "Mascotas",
-    type: "EXPENSE",
-    icon: "PawPrint",
-    color: "#3c6b1c",
-    isCustom: true,
-  },
-  {
-    id: "c-subs",
-    name: "Suscripciones",
-    type: "EXPENSE",
-    icon: "Repeat",
-    color: "#a98ce8",
-    isCustom: true,
-  },
-  {
-    id: "c-freelance",
-    name: "Freelance",
-    type: "INCOME",
-    icon: "Laptop",
-    color: "#2f7d5c",
-    isCustom: true,
-  },
 ];
 
 export const MAX_CUSTOM_CATEGORIES = 5;
