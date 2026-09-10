@@ -67,12 +67,11 @@ export async function GET(req: NextRequest) {
         where,
         skip,
         take: limit,
-        orderBy: { date: "desc" },
+        orderBy: { createdAt: "desc" },
         include: { category: true },
       }),
       prisma.transaction.count({ where }),
     ]);
-
     // 6. Serializar Decimal -> number
     const serializedItems = items.map((t) => ({
       ...t,
@@ -86,7 +85,6 @@ export async function GET(req: NextRequest) {
       pages: Math.ceil(total / limit),
     });
   } catch (error) {
-    console.error(error);
     return NextResponse.json(
       { message: "Error interno del servidor" },
       { status: 500 },
@@ -220,6 +218,178 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function PUT(req: NextRequest) {
+  try {
+    // 1. Obtener usuario desde el JWT
+    const payload = await getInfoToken();
+
+    if (!payload?.sub) {
+      return NextResponse.json({ message: "Token inválido" }, { status: 401 });
+    }
+
+    // 2. Buscar usuario
+    const user = await prisma.user.findUnique({
+      where: { id: payload.sub },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { message: "Usuario no encontrado" },
+        { status: 404 },
+      );
+    }
+
+    // 3. Obtener ID de la transacción
+    const { searchParams } = new URL(req.url);
+    const transactionId = searchParams.get("id");
+
+    if (!transactionId) {
+      return NextResponse.json(
+        { message: "El parámetro id es requerido" },
+        { status: 400 },
+      );
+    }
+
+    // 4. Buscar la transacción y comprobar que pertenece al usuario
+    const existingTransaction = await prisma.transaction.findFirst({
+      where: {
+        id: transactionId,
+        userId: user.id,
+      },
+    });
+
+    if (!existingTransaction) {
+      console.log("Transacción no encontrada");
+      return NextResponse.json(
+        { message: "Transacción no encontrada" },
+        { status: 404 },
+      );
+    }
+
+    // 5. Leer body
+    const body = await req.json();
+
+    const { amount, type, description, date, category_id } = body;
+
+    // 6. Validar amount
+    let parsedAmount: number | undefined = undefined;
+
+    if (amount !== undefined && amount !== null) {
+      parsedAmount = Number(amount);
+
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        return NextResponse.json(
+          { message: "amount debe ser un número mayor a 0" },
+          { status: 400 },
+        );
+      }
+    }
+
+    // 7. Validar type
+    if (
+      type !== undefined &&
+      !Object.values(MovementType).includes(type as MovementType)
+    ) {
+      return NextResponse.json(
+        { message: "type debe ser INCOME o EXPENSE" },
+        { status: 400 },
+      );
+    }
+
+    // Si no mandan type, conservamos el actual
+    const finalType =
+      (type as MovementType | undefined) ?? existingTransaction.type;
+
+    // 8. Validar date
+    let parsedDate: Date | undefined = undefined;
+
+    if (date !== undefined && date !== null) {
+      parsedDate = new Date(date);
+
+      if (isNaN(parsedDate.getTime())) {
+        return NextResponse.json(
+          { message: "date debe ser una fecha válida" },
+          { status: 400 },
+        );
+      }
+    }
+
+    // 9. Validar categoría
+    const finalCategoryId = category_id ?? existingTransaction.categoryId;
+
+    const category = await prisma.category.findFirst({
+      where: {
+        id: finalCategoryId,
+        OR: [{ userId: user.id }, { userId: null }],
+      },
+    });
+
+    if (!category) {
+      console.log("Categoría no encontrada");
+      return NextResponse.json(
+        { message: "Categoría no encontrada" },
+        { status: 404 },
+      );
+    }
+
+    // La categoría debe coincidir con el tipo
+    if (category.type !== finalType) {
+      return NextResponse.json(
+        {
+          message: `La categoría es de tipo ${category.type}, no coincide con type=${finalType}`,
+        },
+        { status: 400 },
+      );
+    }
+
+    // 10. Actualizar transacción
+    const updatedTransaction = await prisma.transaction.update({
+      where: {
+        id: existingTransaction.id,
+      },
+      data: {
+        ...(parsedAmount !== undefined && {
+          amount: parsedAmount,
+        }),
+
+        ...(type !== undefined && {
+          type: finalType,
+        }),
+
+        ...(description !== undefined && {
+          description: description,
+        }),
+
+        ...(parsedDate !== undefined && {
+          date: parsedDate,
+        }),
+
+        ...(category_id !== undefined && {
+          categoryId: finalCategoryId,
+        }),
+      },
+    });
+
+    // 11. Responder
+    return NextResponse.json({
+      id: updatedTransaction.id,
+      amount: updatedTransaction.amount.toNumber(),
+      type: updatedTransaction.type,
+      description: updatedTransaction.description,
+      date: updatedTransaction.date,
+      category_id: updatedTransaction.categoryId,
+      created_at: updatedTransaction.createdAt,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return NextResponse.json(
+      { message: "Error interno del servidor" },
+      { status: 500 },
+    );
+  }
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     // 1. Obtener usuario desde el JWT
@@ -244,7 +414,6 @@ export async function DELETE(req: NextRequest) {
     // 3. Obtener el ID de la transacción
     const { searchParams } = new URL(req.url);
     const transactionId = searchParams.get("id");
-    console.log(transactionId);
 
     if (!transactionId) {
       return NextResponse.json(

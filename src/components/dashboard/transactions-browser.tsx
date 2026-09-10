@@ -16,7 +16,13 @@ import { inputClass, Select } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { categoryById, type Transaction, type TxType } from "@/lib/data";
-import { longDate, money, shortDate, signedMoney } from "@/lib/format";
+import {
+  longDate,
+  money,
+  shortDate,
+  signedMoney,
+  negativePositive,
+} from "@/lib/format";
 
 const PER_PAGE = 10;
 
@@ -30,28 +36,35 @@ const ranges: { value: RangeFilter; label: string }[] = [
   { value: "all", label: "Todo el historial" },
 ];
 
-function withinRange(date: string, range: RangeFilter) {
-  if (range === "all") return true;
-  const d = new Date(date);
+// Calcula start_date/end_date en base al filtro de rango, para mandarlos al server.
+function rangeToDates(range: RangeFilter): { start?: string; end?: string } {
   const now = new Date();
+
   if (range === "month") {
-    return (
-      d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
-    );
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { start: start.toISOString() };
   }
+
   if (range === "last-month") {
-    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    return (
-      d.getFullYear() === prev.getFullYear() && d.getMonth() === prev.getMonth()
-    );
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    return { start: start.toISOString(), end: end.toISOString() };
   }
-  const start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-  return d >= start;
+
+  if (range === "quarter") {
+    const start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+    return { start: start.toISOString() };
+  }
+
+  // "all": sin límites de fecha
+  return {};
 }
 
 export function TransactionsBrowser() {
   const toast = useToast();
   const [items, setItems] = useState<Transaction[]>([]);
+  const [total, setTotal] = useState(0);
+  const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,15 +76,27 @@ export function TransactionsBrowser() {
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Transaction | null>(null);
 
-  // Pide las transacciones al API. El endpoint saca el usuario (email/sub)
-  // que aquí no hay que mandar nada más que el fetch.
+  // Pide las transacciones al API, ya paginadas/filtradas/ordenadas por el
+  // server. El endpoint saca el usuario (email/sub) del token, así que aquí
+  // solo mandamos page, limit y los filtros activos.
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("api/v1/transactions", {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", String(PER_PAGE));
+      if (type !== "ALL") params.set("type", type);
+      if (query.trim()) params.set("search", query.trim());
+
+      const { start, end } = rangeToDates(range);
+      if (start) params.set("start_date", start);
+      if (end) params.set("end_date", end);
+
+      const res = await fetch(`/api/v1/transactions?${params.toString()}`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store", // evita que el navegador sirva una respuesta vieja cacheada
       });
 
       if (!res.ok) {
@@ -85,7 +110,10 @@ export function TransactionsBrowser() {
         page: number;
         pages: number;
       } = await res.json();
+
       setItems(Array.isArray(data.items) ? data.items : []);
+      setTotal(data.total ?? 0);
+      setPages(data.pages && data.pages > 0 ? data.pages : 1);
     } catch (err) {
       setError(
         err instanceof Error
@@ -95,32 +123,21 @@ export function TransactionsBrowser() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, type, query, range]);
 
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return items.filter((t) => {
-      if (type !== "ALL" && t.type !== type) return false;
-      if (!withinRange(t.date, range)) return false;
-      if (!q) return true;
-      return (
-        t.description.toLowerCase().includes(q) ||
-        categoryById(t.categoryId).name.toLowerCase().includes(q)
-      );
-    });
-  }, [items, query, type, range]);
+  // Si el filtro cambia la cantidad de páginas y quedamos "fuera de rango"
+  // (ej. estabas en la página 5 y el nuevo filtro solo tiene 2), vuelve a la 1.
+  useEffect(() => {
+    if (page > pages) setPage(1);
+  }, [pages, page]);
 
-  const pages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  // items ya vienen filtrados, ordenados y paginados por el server.
+  const visible = items;
   const current = Math.min(page, pages);
-  const visible = filtered.slice((current - 1) * PER_PAGE, current * PER_PAGE);
-  const total = filtered.reduce(
-    (s, t) => s + (t.type === "INCOME" ? t.amount : -t.amount),
-    0,
-  );
 
   function reset<T>(setter: (v: T) => void) {
     return (value: T) => {
@@ -133,7 +150,7 @@ export function TransactionsBrowser() {
   // para que la tabla quede sincronizada con lo que quedó en la DB.
   async function handleDelete(t: Transaction) {
     try {
-      const res = await fetch(`api/v1/transactions/?id=${t.id}`, {
+      const res = await fetch(`/api/v1/transactions/?id=${t.id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("No se pudo eliminar");
@@ -220,7 +237,7 @@ export function TransactionsBrowser() {
                   Fecha
                 </th>
                 <th scope="col" className="py-3 font-medium">
-                  Concepto
+                  Descripción
                 </th>
                 <th scope="col" className="px-4 py-3 font-medium">
                   Categoría
@@ -330,8 +347,8 @@ export function TransactionsBrowser() {
         ) : !loading && !error ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rule px-4 py-3 sm:px-5">
             <p className="text-[13px] text-ink-faint">
-              {filtered.length} movimientos, saldo del filtro{" "}
-              <span className="num text-ink">{money(total)}</span>
+              {total} movimientos, saldo de esta página{" "}
+              <span className="num text-ink">{negativePositive(items)}</span>
             </p>
             <div className="flex items-center gap-2">
               <Button
@@ -393,7 +410,7 @@ export function TransactionsBrowser() {
               </strong>{" "}
               hecha el {longDate(deleting.date)} por un valor de{" "}
               <span className="num text-ink">{money(deleting.amount)}</span>. No
-              se puede deshacer.
+              se podra deshacer.
             </p>
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={() => setDeleting(null)}>

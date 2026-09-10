@@ -64,7 +64,7 @@ export function NewTransactionModal({
 
     try {
       const url = editing
-        ? `/api/v1/transactions/${editing.id}`
+        ? `/api/v1/transactions?id=${editing.id}`
         : "/api/v1/transactions";
       const method = editing ? "PUT" : "POST";
 

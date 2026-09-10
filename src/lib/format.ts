@@ -1,3 +1,5 @@
+import { Transaction } from "./data";
+
 const nf = new Intl.NumberFormat("es-ES", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
@@ -74,4 +76,18 @@ export function monthLabel(year: number, month: number): string {
 
 export function monthShort(month: number): string {
   return MONTHS_SHORT[month];
+}
+
+export function negativePositive(items: Transaction[]) {
+  /// Obtener si la cantidad en total es negativa o positiva y mandarla
+  let positivos = 0;
+  let negativos = 0;
+  items.map((item) => {
+    if (item.type === "INCOME") {
+      positivos += item.amount;
+    } else {
+      negativos += item.amount;
+    }
+  });
+  return "$" + nf.format(positivos - negativos);
 }
