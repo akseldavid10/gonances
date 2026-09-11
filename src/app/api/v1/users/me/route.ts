@@ -74,15 +74,6 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
-    const { password } = await request.json();
-
-    if (!password) {
-      return NextResponse.json(
-        { error: "Falta la contraseña" },
-        { status: 400 },
-      );
-    }
-
     const user = await prisma.user.findUnique({
       where: { email: payload.email as string },
     });
@@ -94,23 +85,37 @@ export async function DELETE(request: Request) {
       );
     }
 
-    if (!user.hashedPassword) {
-      return NextResponse.json(
-        {
-          error:
-            "Esta cuenta entra con Google y no tiene contraseña configurada",
-        },
-        { status: 400 },
-      );
-    }
+    if (user.metodoAutenticacion === "local") {
+      const { password } = await request.json();
 
-    const passwordMatches = await bcrypt.compare(password, user.hashedPassword);
+      if (!password) {
+        return NextResponse.json(
+          { error: "Falta la contraseña" },
+          { status: 400 },
+        );
+      }
 
-    if (!passwordMatches) {
-      return NextResponse.json(
-        { error: "Contraseña incorrecta" },
-        { status: 401 },
+      if (!user.hashedPassword) {
+        return NextResponse.json(
+          {
+            error:
+              "Esta cuenta entra con Google y no tiene contraseña configurada",
+          },
+          { status: 400 },
+        );
+      }
+
+      const passwordMatches = await bcrypt.compare(
+        password,
+        user.hashedPassword,
       );
+
+      if (!passwordMatches) {
+        return NextResponse.json(
+          { error: "Contraseña incorrecta" },
+          { status: 401 },
+        );
+      }
     }
 
     // El schema tiene onDelete: Cascade en categories y transactions,
