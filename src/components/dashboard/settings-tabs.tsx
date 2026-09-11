@@ -304,7 +304,38 @@ function DataPanel() {
   const [password, setPassword] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const ready = confirm.trim().toUpperCase() === "ELIMINAR";
+
+  const [isLocal, setIsLocal] = useState<boolean | null>(null);
+  const [checkingAuthMethod, setCheckingAuthMethod] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAuthMethod() {
+      setCheckingAuthMethod(true);
+      try {
+        const res = await fetch("/api/v1/users/me/auth-method");
+        if (!res.ok)
+          throw new Error("No se pudo verificar el método de acceso");
+        const data = await res.json();
+        if (!cancelled) setIsLocal(Boolean(data.isLocal));
+      } catch {
+        // Si falla, asumimos local por seguridad: mejor pedir contraseña
+        // de más que dejar borrar la cuenta sin verificarla.
+        if (!cancelled) setIsLocal(true);
+      } finally {
+        if (!cancelled) setCheckingAuthMethod(false);
+      }
+    }
+
+    loadAuthMethod();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const ready =
+    confirm.trim().toUpperCase() === "ELIMINAR" && (!isLocal || password);
 
   function closeModal() {
     setOpen(false);
@@ -321,7 +352,7 @@ function DataPanel() {
       const res = await fetch("/api/v1/users/me", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify(isLocal ? { password } : {}),
       });
 
       if (!res.ok) {
@@ -374,19 +405,26 @@ function DataPanel() {
               placeholder="ELIMINAR"
             />
           </Field>
-          <Field
-            label="Escribe la contraseña actual para confirmar"
-            htmlFor="confirm-password"
-          >
-            <Input
-              id="confirm-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              placeholder="Contraseña"
-            />
-          </Field>
+
+          {checkingAuthMethod ? (
+            <p className="text-[13px] text-ink-faint">
+              Verificando tu cuenta...
+            </p>
+          ) : isLocal ? (
+            <Field
+              label="Escribe la contraseña actual para confirmar"
+              htmlFor="confirm-password"
+            >
+              <Input
+                id="confirm-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                placeholder="Contraseña"
+              />
+            </Field>
+          ) : null}
         </div>
 
         {error && (
@@ -401,7 +439,7 @@ function DataPanel() {
           </Button>
           <Button
             variant="danger"
-            disabled={!ready || !password || deleting}
+            disabled={!ready || deleting || checkingAuthMethod}
             onClick={onDelete}
           >
             <Trash2 size={16} />
