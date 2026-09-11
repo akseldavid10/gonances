@@ -14,11 +14,12 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
-import { NewTransactionModal } from "@/components/dashboard/new-transaction-modal";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/ui/logo";
 import { ToastProvider } from "@/components/ui/toast";
 import { useCurrentUser } from "../provider/user-provider";
+import { useRouter } from "next/navigation";
+
 const nav = [
   { href: "/dashboard", label: "Panel", icon: ChartPie },
   { href: "/transactions", label: "Transacciones", icon: CreditCard },
@@ -30,7 +31,7 @@ const nav = [
 export function DashboardChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
+  const route = useRouter();
 
   // El menú móvil se cierra al cambiar de pantalla.
   // biome-ignore lint/correctness/useExhaustiveDependencies: la ruta es el único disparador
@@ -46,6 +47,10 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
 
   if (!currentUser) {
     return <div>No autenticado DashBoardChrome</div>;
+  }
+
+  function redireccion() {
+    route.push("/transactions");
   }
 
   return (
@@ -73,7 +78,7 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
             </p>
 
             <div className="ml-auto flex items-center gap-3">
-              <Button onClick={() => setModalOpen(true)}>
+              <Button onClick={redireccion}>
                 <Plus size={16} />
                 Nueva transacción
               </Button>
@@ -93,11 +98,6 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
           </main>
         </div>
       </div>
-
-      <NewTransactionModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-      />
     </ToastProvider>
   );
 }
