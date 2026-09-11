@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import getInfoToken from "@/lib/getInfoToken";
 import bcrypt from "bcryptjs";
+import { cookies } from "next/headers";
 
 export async function GET() {
   try {
@@ -118,12 +119,13 @@ export async function DELETE(request: Request) {
       where: { id: user.id },
     });
 
-    const response = NextResponse.json({ success: true });
-    response.cookies.delete("token");
+    const cookieStore = await cookies();
 
-    return response;
+    cookieStore.delete("accesstoken");
+    cookieStore.delete("refreshtoken");
+
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error al eliminar cuenta:", error);
     return NextResponse.json(
       { error: "Error al eliminar la cuenta" },
       { status: 500 },
