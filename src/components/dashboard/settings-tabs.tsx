@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/toast";
 import { useCurrentUser } from "@/components/provider/user-provider";
 import { longDate } from "@/lib/format";
 import { useRouter } from "next/navigation";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 const tabs = [
   { id: "perfil", label: "Perfil" },
@@ -314,7 +315,7 @@ function DataPanel() {
     async function loadAuthMethod() {
       setCheckingAuthMethod(true);
       try {
-        const res = await fetch("/api/v1/users/me/auth-method");
+        const res = await fetchWithAuth("/api/v1/users/me/auth-method");
         if (!res.ok)
           throw new Error("No se pudo verificar el método de acceso");
         const data = await res.json();
@@ -349,7 +350,7 @@ function DataPanel() {
     setDeleting(true);
 
     try {
-      const res = await fetch("/api/v1/users/me", {
+      const res = await fetchWithAuth("/api/v1/users/me", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(isLocal ? { password } : {}),
@@ -376,7 +377,7 @@ function DataPanel() {
       <Panel title="Eliminar la cuenta">
         <p className="max-w-[62ch] text-[15px] leading-relaxed text-ink-soft">
           Al eliminar la cuenta se borran tu perfil, todos tus movimientos y las
-          categorías que creaste. No guardamos copia, así que no hay vuelta
+          categorías que creaste. No se guarda copia, así que no hay vuelta
           atrás.
         </p>
         <Button variant="danger" className="mt-5" onClick={() => setOpen(true)}>

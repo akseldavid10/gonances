@@ -23,6 +23,7 @@ import {
   signedMoney,
   negativePositive,
 } from "@/lib/format";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 const PER_PAGE = 10;
 
@@ -93,11 +94,14 @@ export function TransactionsBrowser() {
       if (start) params.set("start_date", start);
       if (end) params.set("end_date", end);
 
-      const res = await fetch(`/api/v1/transactions?${params.toString()}`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store", // evita que el navegador sirva una respuesta vieja cacheada
-      });
+      const res = await fetchWithAuth(
+        `/api/v1/transactions?${params.toString()}`,
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store", // evita que el navegador sirva una respuesta vieja cacheada
+        },
+      );
 
       if (!res.ok) {
         throw new Error(`Error ${res.status} al pedir movimientos`);
@@ -150,7 +154,7 @@ export function TransactionsBrowser() {
   // para que la tabla quede sincronizada con lo que quedó en la DB.
   async function handleDelete(t: Transaction) {
     try {
-      const res = await fetch(`/api/v1/transactions/?id=${t.id}`, {
+      const res = await fetchWithAuth(`/api/v1/transactions/?id=${t.id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("No se pudo eliminar");

@@ -6,6 +6,8 @@ import { Field, Input, Select } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { categories, type Transaction, type TxType } from "@/lib/data";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { useRouter } from "next/navigation";
 
 function today() {
   const d = new Date();
@@ -29,6 +31,7 @@ export function NewTransactionModal({
   const [type, setType] = useState<TxType>("EXPENSE");
   const [categoryId, setCategoryId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const route = useRouter();
 
   useEffect(() => {
     if (!open) return;
@@ -68,7 +71,7 @@ export function NewTransactionModal({
         : "/api/v1/transactions";
       const method = editing ? "PUT" : "POST";
 
-      const res = await fetch(url, {
+      const res = await fetchWithAuth(url, {
         method,
         headers: {
           "Content-Type": "application/json",
@@ -78,6 +81,7 @@ export function NewTransactionModal({
 
       if (!res.ok) {
         const errorBody = await res.json().catch(() => null);
+        route.push("/");
         toast(errorBody?.message ?? "No se pudo guardar el movimiento");
         return;
       }

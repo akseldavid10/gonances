@@ -111,18 +111,10 @@ function Sidebar({
   drawerOpen: boolean;
   onClose: () => void;
 }) {
-  const [currentUser, setCurrentUser] = useState(null);
-
-  const clearUser = () => {
-    setCurrentUser(null);
-  };
-
   async function handleLogout() {
     await fetch("/api/v1/auth/logout", {
       method: "POST",
     });
-
-    clearUser();
   }
   return (
     <>

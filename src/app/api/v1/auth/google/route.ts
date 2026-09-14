@@ -127,7 +127,7 @@ export async function GET(request: Request) {
 
     cookieStore.set("accesstoken", accesstoken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: process.env.ENVIROMENT === "prod",
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 30,
@@ -135,7 +135,7 @@ export async function GET(request: Request) {
 
     cookieStore.set("refreshtoken", refreshtoken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: process.env.ENVIROMENT === "prod",
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 7,

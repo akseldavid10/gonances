@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 export type User = {
   username: string;
@@ -32,7 +33,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function loadUser() {
       try {
-        const response = await fetch("/api/v1/users/me");
+        const response = await fetchWithAuth("/api/v1/users/me");
 
         if (!response.ok) {
           setCurrentUser(null);
