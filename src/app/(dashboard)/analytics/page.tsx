@@ -10,19 +10,19 @@ import {
   currentPeriod,
   inMonth,
   monthlyTrends,
-  transactions,
 } from "@/lib/data";
+import { falseTransactions } from "@/lib/falseData";
 import { money, monthLabel } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Estadísticas" };
 
-export default function AnalyticsPage() {
+export default async function AnalyticsPage() {
   const { year, month } = currentPeriod();
-  const trends = monthlyTrends(6);
+  const trends = monthlyTrends(6, falseTransactions);
 
   // Gasto por categoría en los seis meses del período mostrado.
   const since = new Date(year, month - 5, 1);
-  const window = transactions.filter(
+  const window = falseTransactions.filter(
     (t) => t.type === "EXPENSE" && new Date(`${t.date}T12:00:00`) >= since,
   );
   const byCategory = new Map<string, number>();
@@ -38,7 +38,7 @@ export default function AnalyticsPage() {
   const top = ranking[0];
   const max = ranking[0]?.amount ?? 1;
 
-  const monthExpenses = transactions
+  const monthExpenses = falseTransactions
     .filter((t) => t.type === "EXPENSE" && inMonth(t, year, month))
     .reduce((s, t) => s + t.amount, 0);
   const daysElapsed = new Date().getDate();

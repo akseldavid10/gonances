@@ -176,102 +176,10 @@ function iso(year: number, month: number, day: number): string {
   const dd = String(day).padStart(2, "0");
   return `${year}-${mm}-${dd}`;
 }
-
-function buildTransactions(): Transaction[] {
-  const today = new Date();
-  const anchorYear = today.getFullYear();
-  const anchorMonth = today.getMonth();
-  const list: Transaction[] = [];
-  let n = 0;
-
-  // Seis meses hacia atrás, incluyendo el mes en curso.
-  for (let back = 5; back >= 0; back--) {
-    const d = new Date(anchorYear, anchorMonth - back, 1);
-    const year = d.getFullYear();
-    const month = d.getMonth();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    // El mes en curso solo llega hasta hoy, y con menos movimientos: un libro
-    // a mitad de mes no puede tener el mismo volumen que uno cerrado.
-    const lastDay = back === 0 ? today.getDate() : daysInMonth;
-    const share = back === 0 ? lastDay / daysInMonth : 1;
-    const rand = mulberry32(year * 100 + month);
-
-    list.push({
-      id: `t-${++n}`,
-      amount: 2450 + Math.round(rand() * 180),
-      type: "INCOME",
-      description: "Sueldo mensual",
-      date: iso(year, month, Math.min(5, lastDay)),
-      categoryId: "c-salary",
-    });
-
-    if (rand() > 0.4) {
-      const pool = DESCRIPTIONS["c-freelance"];
-      list.push({
-        id: `t-${++n}`,
-        amount: 320 + Math.round(rand() * 540),
-        type: "INCOME",
-        description: pool[Math.floor(rand() * pool.length)],
-        date: iso(year, month, 1 + Math.floor(rand() * lastDay)),
-        categoryId: "c-freelance",
-      });
-    }
-
-    if (rand() > 0.75) {
-      const pool = DESCRIPTIONS["c-other-income"];
-      list.push({
-        id: `t-${++n}`,
-        amount: 40 + Math.round(rand() * 220),
-        type: "INCOME",
-        description: pool[Math.floor(rand() * pool.length)],
-        date: iso(year, month, 1 + Math.floor(rand() * lastDay)),
-        categoryId: "c-other-income",
-      });
-    }
-
-    for (const plan of EXPENSE_PLAN) {
-      const pool = DESCRIPTIONS[plan.id];
-      const count = Math.max(
-        1,
-        Math.round(plan.count * (0.6 + rand() * 0.8) * share),
-      );
-      for (let i = 0; i < count; i++) {
-        const day = 1 + Math.floor(rand() * lastDay);
-        const isRent = plan.id === "c-home" && i === 0;
-        list.push({
-          id: `t-${++n}`,
-          amount: isRent
-            ? 780
-            : Math.round((plan.min + rand() * (plan.max - plan.min)) * 100) /
-              100,
-          type: "EXPENSE",
-          description: isRent
-            ? "Alquiler"
-            : pool[Math.floor(rand() * pool.length)],
-          date: isRent
-            ? iso(year, month, Math.min(3, lastDay))
-            : iso(year, month, day),
-          categoryId: plan.id,
-        });
-      }
-    }
-  }
-
-  return list.sort((a, b) =>
-    a.date < b.date
-      ? 1
-      : a.date > b.date
-        ? -1
-        : Number(b.id.slice(2)) - Number(a.id.slice(2)),
-  );
-}
-
-export const transactions: Transaction[] = buildTransactions();
-
 /* ── Agregados que hoy calcula el cliente y mañana devolverá /analytics ── */
 
 export function inMonth(tx: Transaction, year: number, month: number) {
-  const d = new Date(`${tx.date}T12:00:00`);
+  const d = new Date(tx.date);
   return d.getFullYear() === year && d.getMonth() === month;
 }
 
@@ -280,7 +188,12 @@ export function inMonth(tx: Transaction, year: number, month: number) {
  * cerrado siempre da un porcentaje falso, así que el panel compara la misma
  * altura de mes.
  */
-export function summaryUpToDay(year: number, month: number, day: number) {
+export function summaryUpToDay(
+  year: number,
+  month: number,
+  day: number,
+  transactions: Transaction[],
+) {
   const monthTx = transactions.filter(
     (t) => inMonth(t, year, month) && Number(t.date.slice(8, 10)) <= day,
   );
@@ -294,7 +207,11 @@ export function summaryUpToDay(year: number, month: number, day: number) {
   };
 }
 
-export function summary(year: number, month: number) {
+export function summary(
+  year: number,
+  month: number,
+  transactions: Transaction[],
+) {
   const monthTx = transactions.filter((t) => inMonth(t, year, month));
   const incomes = monthTx
     .filter((t) => t.type === "INCOME")
@@ -309,7 +226,11 @@ export function summary(year: number, month: number) {
   return { balance, incomes, expenses, saved: incomes - expenses };
 }
 
-export function expensesByCategory(year: number, month: number) {
+export function expensesByCategory(
+  year: number,
+  month: number,
+  transactions: Transaction[],
+) {
   const monthTx = transactions.filter(
     (t) => t.type === "EXPENSE" && inMonth(t, year, month),
   );
@@ -332,7 +253,7 @@ export function expensesByCategory(year: number, month: number) {
     .sort((a, b) => b.amount - a.amount);
 }
 
-export function monthlyTrends(months = 6) {
+export function monthlyTrends(months = 6, transactions: Transaction[]) {
   const today = new Date();
   const out: {
     key: string;

@@ -13,21 +13,33 @@ import {
   monthlyTrends,
   summary,
   summaryUpToDay,
-  transactions,
 } from "@/lib/data";
+import { falseTransactions } from "@/lib/falseData";
 import { money, monthLabel, shortDate, signedMoney } from "@/lib/format";
+import { Transaction } from "@/lib/data";
+import { fetchTransactions } from "@/lib/fetchTransactions";
 
 export const metadata: Metadata = { title: "Panel" };
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
   const { year, month } = currentPeriod();
   const today = new Date().getDate();
   const prev = new Date(year, month - 1, 1);
-  const now = summary(year, month);
+
+  const data = await fetchTransactions();
+
+  const transactions: Transaction[] =
+    data && data.length > 0 ? data : falseTransactions;
+  const now = summary(year, month, transactions);
   // Mismo tramo del mes anterior: comparar 4 días contra 30 no dice nada.
-  const before = summaryUpToDay(prev.getFullYear(), prev.getMonth(), today);
-  const breakdown = expensesByCategory(year, month);
-  const trends = monthlyTrends(6);
+  const before = summaryUpToDay(
+    prev.getFullYear(),
+    prev.getMonth(),
+    today,
+    transactions,
+  );
+  const breakdown = expensesByCategory(year, month, transactions);
+  const trends = monthlyTrends(6, transactions);
   const recent = transactions.slice(0, 8);
   const monthCount = transactions.filter((t) => inMonth(t, year, month)).length;
 
@@ -40,25 +52,9 @@ export default function DashboardPage() {
 
       {/* Los tres totales viven en una sola hoja, separados por filete:
           son partes de la misma cuenta, no tres tarjetas sueltas. */}
-      <div className="grid divide-y divide-rule rounded-lg border border-rule bg-sheet sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-        <Kpi
-          label="Balance total"
-          amount={now.balance}
-          tone="ink"
-          note="Todo lo anotado hasta hoy"
-        />
-        <Kpi
-          label="Ingresos del mes"
-          amount={now.incomes}
-          tone="income"
-          note={delta(now.incomes, before.incomes)}
-        />
-        <Kpi
-          label="Gastos del mes"
-          amount={now.expenses}
-          tone="expense"
-          note={delta(now.expenses, before.expenses)}
-        />
+      <div className="grid divide-y divide-rule rounded-lg border border-rule bg-sheet sm:grid-cols-2 sm:divide-x sm:divide-y-0 ">
+        <Kpi label="Ingresos del mes" amount={now.incomes} tone="income" />
+        <Kpi label="Gastos del mes" amount={now.expenses} tone="expense" />
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
@@ -172,12 +168,10 @@ function Kpi({
   label,
   amount,
   tone,
-  note,
 }: {
   label: string;
   amount: number;
   tone: "ink" | "income" | "expense";
-  note: string;
 }) {
   const color =
     tone === "income"
@@ -193,7 +187,6 @@ function Kpi({
       >
         {money(amount)}
       </p>
-      <p className="mt-2.5 text-[13px] text-ink-faint">{note}</p>
     </div>
   );
 }

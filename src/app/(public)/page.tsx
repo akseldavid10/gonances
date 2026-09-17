@@ -5,6 +5,7 @@ import { LedgerSheet } from "@/components/landing/ledger-sheet";
 import { ButtonLink } from "@/components/ui/button";
 import { CategoryStamp } from "@/components/ui/category-icon";
 import { currentPeriod, expensesByCategory, monthlyTrends } from "@/lib/data";
+import { falseTransactions } from "@/lib/falseData";
 import { monthLabel } from "@/lib/format";
 
 const features = [
@@ -66,10 +67,10 @@ const faqs = [
   },
 ];
 
-export default function LandingPage() {
+export default async function LandingPage() {
   const { year, month } = currentPeriod();
-  const breakdown = expensesByCategory(year, month);
-  const trends = monthlyTrends(6);
+  const breakdown = expensesByCategory(year, month, falseTransactions);
+  const trends = monthlyTrends(6, falseTransactions);
 
   return (
     <>

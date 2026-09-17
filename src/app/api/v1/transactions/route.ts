@@ -25,18 +25,37 @@ export async function GET(req: NextRequest) {
     // 3. Leer query params
     const { searchParams } = new URL(req.url);
 
-    const page = parseInt(searchParams.get("page") ?? "1", 10);
-    const limit = parseInt(searchParams.get("limit") ?? "10", 10);
-    const type = searchParams.get("type"); // "INCOME" | "EXPENSE"
-    const categoryId = searchParams.get("category_id");
+    const page1 = searchParams.get("page");
+    const limit1 = searchParams.get("limit");
     const startDate = searchParams.get("start_date");
-    const endDate = searchParams.get("end_date");
-    const search = searchParams.get("search");
 
     // 4. Armar filtros dinámicos
     const where: Prisma.TransactionWhereInput = {
       userId: user.id,
     };
+
+    if (!page1 && !limit1 && !startDate) {
+      const [items, total] = await Promise.all([
+        prisma.transaction.findMany({
+          where,
+          orderBy: { createdAt: "desc" },
+          include: { category: true },
+        }),
+        prisma.transaction.count({ where }),
+      ]);
+
+      return NextResponse.json({
+        items: items,
+        total,
+      });
+    }
+
+    const page = parseInt(page1 ?? "1");
+    const limit = parseInt(limit1 ?? "10");
+    const type = searchParams.get("type"); // "INCOME" | "EXPENSE"
+    const categoryId = searchParams.get("category_id");
+    const endDate = searchParams.get("end_date");
+    const search = searchParams.get("search");
 
     if (type && Object.values(MovementType).includes(type as MovementType)) {
       where.type = type as MovementType;

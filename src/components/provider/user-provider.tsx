@@ -44,7 +44,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
         setCurrentUser(data.user);
       } catch (error) {
-        console.error("Error obteniendo el usuario:", error);
         setCurrentUser(null);
       } finally {
         setLoading(false);

@@ -5,6 +5,7 @@ import {
   themeBootstrapScript,
 } from "@/components/theme/theme-provider";
 import "./globals.css";
+import { UserProvider } from "@/components/provider/user-provider";
 
 const bodoni = Bodoni_Moda({
   variable: "--font-bodoni",
@@ -42,7 +43,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
       <body className="min-h-full flex flex-col">
-        <ThemeProvider>{children}</ThemeProvider>
+        <UserProvider>
+          <ThemeProvider>{children}</ThemeProvider>
+        </UserProvider>
       </body>
     </html>
   );
