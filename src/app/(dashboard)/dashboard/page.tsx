@@ -23,8 +23,6 @@ export const metadata: Metadata = { title: "Panel" };
 
 export default async function DashboardPage() {
   const { year, month } = currentPeriod();
-  const today = new Date().getDate();
-  const prev = new Date(year, month - 1, 1);
 
   const data = await fetchTransactions();
 
