@@ -32,12 +32,6 @@ export default async function DashboardPage() {
     data && data.length > 0 ? data : falseTransactions;
   const now = summary(year, month, transactions);
   // Mismo tramo del mes anterior: comparar 4 días contra 30 no dice nada.
-  const before = summaryUpToDay(
-    prev.getFullYear(),
-    prev.getMonth(),
-    today,
-    transactions,
-  );
   const breakdown = expensesByCategory(year, month, transactions);
   const trends = monthlyTrends(6, transactions);
   const recent = transactions.slice(0, 8);
