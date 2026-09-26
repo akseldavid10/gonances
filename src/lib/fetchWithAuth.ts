@@ -1,8 +1,22 @@
+let refreshRequest: Promise<Response> | null = null;
+
+function refreshAccessToken(): Promise<Response> {
+  if (!refreshRequest) {
+    refreshRequest = fetch("/api/v1/auth/refresh", {
+      method: "POST",
+    }).finally(() => {
+      refreshRequest = null;
+    });
+  }
+
+  return refreshRequest;
+}
+
 export async function fetchWithAuth(
   input: RequestInfo | URL,
   init?: RequestInit,
 ) {
-  let response = await fetch(input, {
+  const response = await fetch(input, {
     ...init,
   });
 
@@ -10,9 +24,7 @@ export async function fetchWithAuth(
     return response;
   }
 
-  const refreshResponse = await fetch("/api/v1/auth/refresh", {
-    method: "POST",
-  });
+  const refreshResponse = await refreshAccessToken();
 
   if (!refreshResponse.ok) {
     return response;

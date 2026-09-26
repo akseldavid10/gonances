@@ -293,12 +293,12 @@ export function TransactionsBrowser() {
                       <td className="px-4 py-3 align-middle">
                         <span className="flex items-center gap-2.5 whitespace-nowrap">
                           <CategoryStamp
-                            icon={cat.icon}
-                            color={cat.color}
+                            icon={cat?.icon ?? "HelpCircle"}
+                            color={cat?.color ?? "#6d7c72"}
                             size={24}
                           />
                           <span className="text-[14px] text-ink-soft">
-                            {cat.name}
+                            {cat?.name ?? "Categoría"}
                           </span>
                         </span>
                       </td>

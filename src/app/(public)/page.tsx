@@ -1,11 +1,11 @@
-import { ArrowRight } from "lucide-react";
+import { connection } from "next/server";
 import { IncomeExpenseBars, SeriesLegend } from "@/components/dashboard/charts";
 import { ExpenseBreakdown } from "@/components/dashboard/expense-breakdown";
 import { LedgerSheet } from "@/components/landing/ledger-sheet";
 import { ButtonLink } from "@/components/ui/button";
 import { CategoryStamp } from "@/components/ui/category-icon";
-import { currentPeriod, expensesByCategory, monthlyTrends } from "@/lib/data";
-import { falseTransactions } from "@/lib/falseData";
+import { expensesByCategory, monthlyTrends } from "@/lib/data";
+import { getDynamicFalseTransactions } from "@/lib/falseData";
 import { monthLabel } from "@/lib/format";
 
 const features = [
@@ -68,9 +68,13 @@ const faqs = [
 ];
 
 export default async function LandingPage() {
-  const { year, month } = currentPeriod();
-  const breakdown = expensesByCategory(year, month, falseTransactions);
-  const trends = monthlyTrends(6, falseTransactions);
+  await connection();
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const transactions = getDynamicFalseTransactions(now);
+  const breakdown = expensesByCategory(year, month, transactions);
+  const trends = monthlyTrends(6, transactions, now);
 
   return (
     <>
@@ -90,9 +94,13 @@ export default async function LandingPage() {
               <ButtonLink href="/register" size="lg">
                 Crear mi cuenta gratis
               </ButtonLink>
-              <ButtonLink href="/dashboard" variant="outline" size="lg">
-                Ver el panel de ejemplo
-              </ButtonLink>
+              <a
+                key={"#Asi-Se-Lee_Tu_Mes"}
+                href={"#Asi-Se-Lee_Tu_Mes"}
+                className="text-[14px] text-ink-soft transition-colors hover:text-ink"
+              >
+                {"Ver panel de ejemplo"}
+              </a>
             </div>
             <p className="mt-5 text-[13px] text-ink-faint">
               Gratis durante la beta. También puedes entrar con tu cuenta de
@@ -159,21 +167,21 @@ export default async function LandingPage() {
       </section>
 
       {/* ── Demostración con datos de una cuenta de ejemplo ───────────── */}
-      <section className="mx-auto max-w-290 border-t border-rule px-5 py-16 sm:px-8 sm:py-20">
+      <section
+        className="mx-auto max-w-290 border-t border-rule px-5 py-16 sm:px-8 sm:py-20"
+        id="Asi-Se-Lee_Tu_Mes"
+      >
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="font-display text-[clamp(1.9rem,3.4vw,2.7rem)] leading-tight tracking-[-0.015em] text-ink">
               Así se lee tu mes
             </h2>
             <p className="mt-3 max-w-[52ch] text-[15px] leading-relaxed text-ink-soft">
-              Los dos gráficos del panel, con los movimientos de una cuenta de
-              ejemplo. Pasa el cursor por encima para ver los montos.
+              Datos ficticios de seis meses completos, hasta{" "}
+              {monthLabel(year, month)}. Se actualizan cada mes. Pasa el cursor
+              por encima para ver los montos.
             </p>
           </div>
-          <ButtonLink href="/dashboard" variant="outline">
-            Abrir el panel de ejemplo
-            <ArrowRight size={16} />
-          </ButtonLink>
         </div>
 
         <div className="mt-10 grid gap-5 lg:grid-cols-2">
@@ -220,11 +228,10 @@ export default async function LandingPage() {
               ¿Falta alguna? Escribe a{" "}
               <a
                 className="text-ink underline underline-offset-4"
-                href="mailto:hola@gonances.app"
+                href="mailto:gonances1@gmail.com"
               >
-                hola@gonances.app
+                gonances1@gmail.com
               </a>
-              .
             </p>
           </div>
           <div className="divide-y divide-rule border-y border-rule">

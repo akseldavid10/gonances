@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { Transaction } from "./data";
 
 export async function fetchTransactions(): Promise<Transaction[]> {
-  const response = await fetch("http://localhost:3000/api/v1/transactions", {
+  const response = await fetch("/api/v1/transactions", {
     headers: {
       Cookie: (await cookies()).toString(),
     },

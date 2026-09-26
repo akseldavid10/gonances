@@ -51,11 +51,27 @@ export const categories: Category[] = [
     isCustom: false,
   },
   {
+    id: "c-pets",
+    name: "Mascotas",
+    type: "EXPENSE",
+    icon: "HeartPulse",
+    color: "#e07a88",
+    isCustom: false,
+  },
+  {
     id: "c-leisure",
     name: "Ocio",
     type: "EXPENSE",
     icon: "Ticket",
     color: "#d9a81e",
+    isCustom: false,
+  },
+  {
+    id: "c-subs",
+    name: "Suscripciones",
+    type: "EXPENSE",
+    icon: "Ticket",
+    color: "#6d7c72",
     isCustom: false,
   },
   {
@@ -94,10 +110,8 @@ export const categories: Category[] = [
 
 export const MAX_CUSTOM_CATEGORIES = 5;
 
-export function categoryById(id: string): Category {
-  return (
-    categories.find((c) => c.id === id) ?? categories[categories.length - 1]
-  );
+export function categoryById(id: string): Category | null {
+  return categories.find((c) => c.id === id) ?? null;
 }
 
 const DESCRIPTIONS: Record<string, string[]> = {
@@ -244,8 +258,8 @@ export function expensesByCategory(
       const cat = categoryById(categoryId);
       return {
         categoryId,
-        category: cat.name,
-        color: cat.color,
+        category: cat?.name ?? "Categoría",
+        color: cat?.color ?? "#6d7c72",
         amount,
         percentage: Math.round((amount / total) * 1000) / 10,
       };
@@ -253,8 +267,38 @@ export function expensesByCategory(
     .sort((a, b) => b.amount - a.amount);
 }
 
-export function monthlyTrends(months = 6, transactions: Transaction[]) {
+export function expensesByCategory2(transactions: Transaction[]) {
   const today = new Date();
+  const month = today.getMonth();
+  const year = today.getFullYear();
+
+  const monthTx = transactions.filter(
+    (t) => t.type === "EXPENSE" && inMonth(t, year, month),
+  );
+  const total = monthTx.reduce((s, t) => s + t.amount, 0) || 1;
+  const grouped = new Map<string, number>();
+  for (const t of monthTx) {
+    grouped.set(t.categoryId, (grouped.get(t.categoryId) ?? 0) + t.amount);
+  }
+  return [...grouped.entries()]
+    .map(([categoryId, amount]) => {
+      const cat = categoryById(categoryId);
+      return {
+        categoryId,
+        category: cat?.name ?? "Categoría",
+        color: cat?.color ?? "#6d7c72",
+        amount,
+        percentage: Math.round((amount / total) * 1000) / 10,
+      };
+    })
+    .sort((a, b) => b.amount - a.amount);
+}
+
+export function monthlyTrends(
+  months = 6,
+  transactions: Transaction[],
+  today = new Date(),
+) {
   const out: {
     key: string;
     label: string;
@@ -304,5 +348,6 @@ export function currentPeriod() {
 }
 
 export function categoryIconFor(id: string) {
-  return categoryById(id).icon;
+  const cat = categoryById(id);
+  return cat?.icon ?? "HelpCircle";
 }

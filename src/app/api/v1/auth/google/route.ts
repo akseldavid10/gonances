@@ -7,7 +7,8 @@ import { cookies } from "next/headers";
 const googleClient = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  "http://localhost:3000/api/v1/auth/google",
+  process.env.NEXT_PUBLIC_BASE_URL ||
+    "http://localhost:3000/api/v1/auth/google",
 );
 
 const ACCESS_TOKEN_SECRET = new TextEncoder().encode(

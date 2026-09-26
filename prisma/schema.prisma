@@ -43,7 +43,7 @@ model Category {
   color  String
 
   userId String? @map("user_id")
-  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   transactions Transaction[]
 

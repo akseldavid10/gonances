@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import {
   ExpenseTrendArea,
   IncomeExpenseBars,
@@ -7,23 +8,26 @@ import {
 import { PageHeader, Panel } from "@/components/ui/panel";
 import {
   categoryById,
-  currentPeriod,
   inMonth,
   monthlyTrends,
 } from "@/lib/data";
-import { falseTransactions } from "@/lib/falseData";
+import { getDynamicFalseTransactions } from "@/lib/falseData";
 import { money, monthLabel } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Estadísticas" };
 
 export default async function AnalyticsPage() {
-  const { year, month } = currentPeriod();
-  const trends = monthlyTrends(6, falseTransactions);
+  await connection();
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const falseTransactions = getDynamicFalseTransactions(now);
+  const trends = monthlyTrends(6, falseTransactions, now);
 
   // Gasto por categoría en los seis meses del período mostrado.
   const since = new Date(year, month - 5, 1);
   const window = falseTransactions.filter(
-    (t) => t.type === "EXPENSE" && new Date(`${t.date}T12:00:00`) >= since,
+    (t) => t.type === "EXPENSE" && new Date(t.date) >= since,
   );
   const byCategory = new Map<string, number>();
   for (const t of window) {
@@ -33,7 +37,10 @@ export default async function AnalyticsPage() {
     );
   }
   const ranking = [...byCategory.entries()]
-    .map(([id, amount]) => ({ cat: categoryById(id), amount }))
+    .map(([id, amount]) => {
+      const cat = categoryById(id);
+      return { cat, amount: cat ? amount : 0 };
+    })
     .sort((a, b) => b.amount - a.amount);
   const top = ranking[0];
   const max = ranking[0]?.amount ?? 1;
@@ -112,16 +119,20 @@ export default async function AnalyticsPage() {
         >
           {top ? (
             <p className="mb-5 max-w-[68ch] text-[15px] leading-relaxed text-ink-soft">
-              <strong className="font-semibold text-ink">{top.cat.name}</strong>{" "}
+              <strong className="font-semibold text-ink">
+                {top.cat?.name ?? "Categoría"}
+              </strong>{" "}
               se lleva la mayor parte: {money(top.amount)} en seis meses.
             </p>
           ) : null}
 
           <ul className="grid gap-3">
             {ranking.map((r) => (
-              <li key={r.cat.id} className="grid gap-1.5">
+              <li key={r.cat?.id ?? "cat"} className="grid gap-1.5">
                 <div className="flex items-baseline justify-between gap-4">
-                  <span className="text-[14px] text-ink">{r.cat.name}</span>
+                  <span className="text-[14px] text-ink">
+                    {r.cat?.name ?? "Categoría"}
+                  </span>
                   <span className="num text-[14px] text-ink-soft">
                     {money(r.amount)}
                   </span>
@@ -131,7 +142,7 @@ export default async function AnalyticsPage() {
                     className="h-full rounded-sm"
                     style={{
                       width: `${Math.max(2, (r.amount / max) * 100)}%`,
-                      backgroundColor: r.cat.color,
+                      backgroundColor: r.cat?.color ?? "#6d7c72",
                     }}
                   />
                 </div>

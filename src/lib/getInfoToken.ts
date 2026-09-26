@@ -12,10 +12,16 @@ export default async function getInfoToken(): Promise<JWTPayload | null> {
     return null;
   }
 
-  const secret = new TextEncoder().encode(process.env.JWT_ACCESS_SECRET!);
+  const secret = process.env.JWT_ACCESS_SECRET;
+  if (!secret) {
+    console.error("JWT_ACCESS_SECRET not configured");
+    return null;
+  }
+
+  const secretEncoded = new TextEncoder().encode(secret);
 
   try {
-    const { payload } = await jwtVerify(accesstoken, secret);
+    const { payload } = await jwtVerify(accesstoken, secretEncoded);
 
     return payload;
   } catch {

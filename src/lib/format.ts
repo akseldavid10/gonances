@@ -12,9 +12,9 @@ const nfCompact = new Intl.NumberFormat("es-ES", {
   useGrouping: true,
 });
 
-/** Monto con separadores y dos decimales: 1.240,50 */
+/** Monto con separadores y dos decimales: 1.240,50 o -$1.240,50 */
 export function money(amount: number): string {
-  return `$${nf.format(Math.abs(amount))}`;
+  return `$${nf.format(amount)}`;
 }
 
 /** Monto con signo explícito para movimientos: +$1.240,50 / −$320,00 */
@@ -79,15 +79,16 @@ export function monthShort(month: number): string {
 }
 
 export function negativePositive(items: Transaction[]) {
-  /// Obtener si la cantidad en total es negativa o positiva y mandarla
   let positivos = 0;
   let negativos = 0;
-  items.map((item) => {
+
+  items.forEach((item) => {
     if (item.type === "INCOME") {
       positivos += item.amount;
     } else {
       negativos += item.amount;
     }
   });
+
   return "$" + nf.format(positivos - negativos);
 }

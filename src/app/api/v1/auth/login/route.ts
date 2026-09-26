@@ -31,12 +31,19 @@ export async function POST(request: Request) {
       where: { email },
     });
 
-    // Si el usuario no existe o se registró con Google (no tiene hashed_password),
-    // comparamos igual contra el dummy hash para no filtrar información por timing.
-    const hashToCompare = user?.hashedPassword ?? DUMMY_HASH;
+    if (!user) {
+      return NextResponse.json(
+        { error: "Credenciales inválidas" },
+        { status: 401 },
+      );
+    }
+
+    // Si el usuario no tiene hashed_password (se registró con Google),
+    // comparamos contra el dummy hash para no filtrar información por timing.
+    const hashToCompare = user.hashedPassword ?? DUMMY_HASH;
     const isPasswordValid = await bcrypt.compare(password, hashToCompare);
 
-    if (!user || !user.hashedPassword || !isPasswordValid) {
+    if (!isPasswordValid) {
       return NextResponse.json(
         { error: "Credenciales inválidas" },
         { status: 401 },
@@ -69,7 +76,7 @@ export async function POST(request: Request) {
 
     cookieStore.set("accesstoken", accesstoken, {
       httpOnly: true,
-      secure: process.env.ENVIRONMENT === "prod",
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
       maxAge: 30 * 60, // 30 min en segundos
@@ -77,7 +84,7 @@ export async function POST(request: Request) {
 
     cookieStore.set("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: process.env.ENVIRONMENT === "prod",
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
       maxAge: 7 * 24 * 60 * 60, // 7 días en segundos

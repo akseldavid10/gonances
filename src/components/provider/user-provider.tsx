@@ -3,10 +3,10 @@
 
 import {
   createContext,
+  type ReactNode,
   useContext,
   useEffect,
   useState,
-  type ReactNode,
 } from "react";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
@@ -17,6 +17,23 @@ export type User = {
   memberSince: string;
   authMethod: "google" | "local";
 };
+
+let currentUserRequest: Promise<User | null> | null = null;
+
+function loadCurrentUser(): Promise<User | null> {
+  if (!currentUserRequest) {
+    currentUserRequest = (async () => {
+      const response = await fetchWithAuth("/api/v1/users/me");
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data.user ?? null;
+    })().finally(() => {
+      currentUserRequest = null;
+    });
+  }
+
+  return currentUserRequest;
+}
 
 type UserContextType = {
   currentUser: User | null;
@@ -31,26 +48,22 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadUser() {
-      try {
-        const response = await fetchWithAuth("/api/v1/users/me");
+    let active = true;
 
-        if (!response.ok) {
-          setCurrentUser(null);
-          return;
-        }
+    loadCurrentUser()
+      .then((user) => {
+        if (active) setCurrentUser(user);
+      })
+      .catch(() => {
+        if (active) setCurrentUser(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
 
-        const data = await response.json();
-
-        setCurrentUser(data.user);
-      } catch (error) {
-        setCurrentUser(null);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadUser();
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (

@@ -14,7 +14,7 @@ import {
   summary,
   summaryUpToDay,
 } from "@/lib/data";
-import { falseTransactions } from "@/lib/falseData";
+import { getDynamicFalseTransactions } from "@/lib/falseData";
 import { money, monthLabel, shortDate, signedMoney } from "@/lib/format";
 import { Transaction } from "@/lib/data";
 import { fetchTransactions } from "@/lib/fetchTransactions";
@@ -27,7 +27,7 @@ export default async function DashboardPage() {
   const data = await fetchTransactions();
 
   const transactions: Transaction[] =
-    data && data.length > 0 ? data : falseTransactions;
+    data && data.length > 0 ? data : getDynamicFalseTransactions();
   const now = summary(year, month, transactions);
   // Mismo tramo del mes anterior: comparar 4 días contra 30 no dice nada.
   const breakdown = expensesByCategory(year, month, transactions);
@@ -118,14 +118,14 @@ export default async function DashboardPage() {
                     key={t.id}
                     className="border-t border-rule-soft even:bg-band/45"
                   >
-                    <td className="px-4 py-3 align-middle text-[13px] whitespace-nowrap text-ink-faint sm:px-5">
+                    <td className="px-4 py-2 align-middle text-[13px] whitespace-nowrap text-ink-faint sm:px-5">
                       {shortDate(t.date)}
                     </td>
-                    <td className="py-3 align-middle">
+                    <td className="py-2 align-middle">
                       <span className="flex items-center gap-3">
                         <CategoryStamp
-                          icon={cat.icon}
-                          color={cat.color}
+                          icon={cat?.icon ?? "HelpCircle"}
+                          color={cat?.color ?? "#6d7c72"}
                           size={26}
                         />
                         <span className="min-w-0">
@@ -133,7 +133,7 @@ export default async function DashboardPage() {
                             {t.description}
                           </span>
                           <span className="block text-[12px] leading-tight text-ink-faint">
-                            {cat.name}
+                            {cat?.name ?? "Categoría"}
                           </span>
                         </span>
                       </span>

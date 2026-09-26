@@ -1,84 +1,119 @@
-import { Transaction } from "./data";
+import type { Transaction } from "./data";
 
-export const falseTransactions: Transaction[] = [
+type ExampleMovement = Omit<Transaction, "id" | "date"> & { day: number };
+
+// Un mes completo de ejemplo: ingresos y seis categorías de gasto.
+// Días <= 28 para que también sean válidos en febrero.
+const monthlyExamples: ExampleMovement[] = [
   {
-    id: "tx-001",
-    amount: 12.5,
-    type: "EXPENSE",
-    description: "Almuerzo",
-    date: "2026-04-08T12:35:00",
-    categoryId: "c-food",
-  },
-  {
-    id: "tx-002",
-    amount: 450,
+    day: 1,
+    amount: 1850,
     type: "INCOME",
-    description: "Pago mensual",
-    date: "2026-04-15T08:00:00",
+    description: "Sueldo mensual",
     categoryId: "c-salary",
   },
   {
-    id: "tx-003",
-    amount: 3.5,
+    day: 3,
+    amount: 620,
     type: "EXPENSE",
-    description: "Transporte en bus",
-    date: "2026-05-03T07:45:00",
-    categoryId: "c-transport",
-  },
-  {
-    id: "tx-004",
-    amount: 28.75,
-    type: "EXPENSE",
-    description: "Productos para la casa",
-    date: "2026-05-21T16:20:00",
+    description: "Alquiler",
     categoryId: "c-home",
   },
   {
-    id: "tx-005",
-    amount: 120,
-    type: "INCOME",
-    description: "Trabajo freelance",
-    date: "2026-06-06T18:10:00",
-    categoryId: "c-other-income",
+    day: 5,
+    amount: 145,
+    type: "EXPENSE",
+    description: "Compra del supermercado",
+    categoryId: "c-food",
   },
   {
-    id: "tx-006",
-    amount: 15,
+    day: 8,
+    amount: 75,
     type: "EXPENSE",
-    description: "Salida al cine",
-    date: "2026-06-28T19:30:00",
-    categoryId: "c-leisure",
+    description: "Transporte",
+    categoryId: "c-transport",
   },
   {
-    id: "tx-007",
-    amount: 8,
+    day: 12,
+    amount: 115,
     type: "EXPENSE",
-    description: "Recarga de celular",
-    date: "2026-07-12T09:15:00",
+    description: "Luz e internet",
     categoryId: "c-services",
   },
   {
-    id: "tx-008",
-    amount: 22.5,
-    type: "EXPENSE",
-    description: "Medicamentos",
-    date: "2026-08-04T10:40:00",
-    categoryId: "c-health",
-  },
-  {
-    id: "tx-009",
-    amount: 75,
+    day: 15,
+    amount: 180,
     type: "INCOME",
-    description: "Dinero recibido",
-    date: "2026-08-23T14:25:00",
+    description: "Trabajo freelance",
     categoryId: "c-other-income",
   },
   {
-    id: "tx-010",
-    amount: 18.25,
+    day: 18,
+    amount: 85,
+    type: "EXPENSE",
+    description: "Cine y salidas",
+    categoryId: "c-leisure",
+  },
+  {
+    day: 21,
+    amount: 45,
+    type: "EXPENSE",
+    description: "Farmacia",
+    categoryId: "c-health",
+  },
+  {
+    day: 24,
+    amount: 95,
+    type: "EXPENSE",
+    description: "Mercado del barrio",
+    categoryId: "c-food",
+  },
+  {
+    day: 28,
+    amount: 62.5,
     type: "EXPENSE",
     description: "Cena",
-    date: "2026-09-15T20:05:00",
     categoryId: "c-food",
   },
 ];
+
+const monthlyVariation = [
+  { income: 1, expense: 0.86 },
+  { income: 0.98, expense: 1.04 },
+  { income: 1.06, expense: 0.94 },
+  { income: 1.01, expense: 1.12 },
+  { income: 1.08, expense: 0.98 },
+  { income: 1.04, expense: 1.06 },
+];
+
+/**
+ * Seis meses de demostración, desde hace cinco meses hasta el mes actual.
+ * Todo permanece estable dentro del mes y avanza al comenzar el siguiente.
+ * Son meses completos ficticios, no movimientos reales acumulados hasta hoy.
+ * Se calcula al llamar, nunca al importar el módulo, para evitar fechas obsoletas.
+ */
+export function getDynamicFalseTransactions(now = new Date()): Transaction[] {
+  if (Number.isNaN(now.getTime())) {
+    throw new RangeError("Fecha de referencia inválida");
+  }
+
+  return monthlyVariation.flatMap((variation, index) => {
+    const month = new Date(now.getFullYear(), now.getMonth() - 5 + index, 1);
+    const yearMonth = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`;
+
+    return monthlyExamples.map(({ day, ...movement }, movementIndex) => ({
+      ...movement,
+      id: `demo-${yearMonth}-${movementIndex + 1}`,
+      amount:
+        Math.round(
+          movement.amount *
+            (movement.type === "INCOME"
+              ? variation.income
+              : variation.expense) *
+            100,
+        ) / 100,
+      // Hora local explícita: evita desplazar el día al interpretar una fecha UTC.
+      date: `${yearMonth}-${String(day).padStart(2, "0")}T12:00:00`,
+    }));
+  });
+}
