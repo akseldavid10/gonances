@@ -89,66 +89,78 @@ export default async function DashboardPage() {
           }
           bodyClassName=""
         >
-          <table className="w-full border-collapse text-left">
-            <caption className="sr-only">
-              Los ocho movimientos más recientes de tu libro
-            </caption>
-            <thead>
-              <tr className="text-[12px] text-ink-faint">
-                <th scope="col" className="px-4 py-2 font-medium sm:px-5">
-                  Fecha
-                </th>
-                <th scope="col" className="py-2 font-medium">
-                  Concepto
-                </th>
-                <th
-                  scope="col"
-                  className="px-4 py-2 text-right font-medium sm:px-5"
-                >
-                  Monto
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {recent.map((t) => {
-                const cat = categoryById(t.categoryId) ?? t.category;
-                return (
-                  <tr
-                    key={t.id}
-                    className="border-t border-rule-soft even:bg-band/45"
+          {recent.length === 0 ? (
+            <div className="px-5 py-12 text-center">
+              <p className="text-[15px] text-ink">
+                Tu libro todavía está en blanco.
+              </p>
+              <p className="mx-auto mt-1.5 max-w-[46ch] text-[14px] text-ink-soft">
+                Usa «Nueva transacción» arriba y el primer movimiento aparecerá
+                aquí.
+              </p>
+            </div>
+          ) : (
+            <table className="w-full border-collapse text-left">
+              <caption className="sr-only">
+                Los ocho movimientos más recientes de tu libro
+              </caption>
+              <thead>
+                <tr className="text-[12px] text-ink-faint">
+                  <th scope="col" className="px-4 py-2 font-medium sm:px-5">
+                    Fecha
+                  </th>
+                  <th scope="col" className="py-2 font-medium">
+                    Concepto
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-4 py-2 text-right font-medium sm:px-5"
                   >
-                    <td className="px-4 py-2 align-middle text-[13px] whitespace-nowrap text-ink-faint sm:px-5">
-                      {shortDate(t.date)}
-                    </td>
-                    <td className="py-2 align-middle">
-                      <span className="flex items-center gap-3">
-                        <CategoryStamp
-                          icon={cat?.icon ?? "HelpCircle"}
-                          color={cat?.color ?? "#6d7c72"}
-                          size={26}
-                        />
-                        <span className="min-w-0">
-                          <span className="block truncate text-[14px] leading-tight text-ink">
-                            {t.description}
-                          </span>
-                          <span className="block text-[12px] leading-tight text-ink-faint">
-                            {cat?.name ?? "Categoría"}
+                    Monto
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {recent.map((t) => {
+                  const cat = categoryById(t.categoryId) ?? t.category;
+                  return (
+                    <tr
+                      key={t.id}
+                      className="border-t border-rule-soft even:bg-band/45"
+                    >
+                      <td className="px-4 py-2 align-middle text-[13px] whitespace-nowrap text-ink-faint sm:px-5">
+                        {shortDate(t.date)}
+                      </td>
+                      <td className="py-2 align-middle">
+                        <span className="flex items-center gap-3">
+                          <CategoryStamp
+                            icon={cat?.icon ?? "HelpCircle"}
+                            color={cat?.color ?? "#6d7c72"}
+                            size={26}
+                          />
+                          <span className="min-w-0">
+                            <span className="block truncate text-[14px] leading-tight text-ink">
+                              {t.description || cat?.name || "Sin descripción"}
+                            </span>
+                            <span className="block text-[12px] leading-tight text-ink-faint">
+                              {cat?.name ?? "Categoría"}
+                            </span>
                           </span>
                         </span>
-                      </span>
-                    </td>
-                    <td
-                      className={`num px-4 py-3 text-right align-middle text-[14px] whitespace-nowrap sm:px-5 ${
-                        t.type === "INCOME" ? "text-income" : "text-expense"
-                      }`}
-                    >
-                      {signedMoney(t.amount, t.type, currency)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                      <td
+                        className={`num px-4 py-3 text-right align-middle text-[14px] whitespace-nowrap sm:px-5 ${
+                          t.type === "INCOME" ? "text-income" : "text-expense"
+                        }`}
+                      >
+                        {signedMoney(t.amount, t.type, currency)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </Panel>
       </div>
     </>

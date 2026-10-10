@@ -54,7 +54,7 @@ export function CategoryStamp({
         backgroundColor: `${color}26`,
         // Varias tintas de categoría son claras a propósito (separación para
         // daltonismo); el icono se oscurece para seguir legible sobre la hoja.
-        color: `color-mix(in oklab, ${color} 76%, #1a2a22)`,
+        color: `color-mix(in oklab, ${color} 76%, #1f1f1d)`,
         boxShadow: `inset 0 0 0 1px ${color}59`,
       }}
     >

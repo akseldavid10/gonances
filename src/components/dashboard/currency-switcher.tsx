@@ -151,7 +151,7 @@ export function CurrencySwitcher({ onChanged }: { onChanged?: () => void }) {
           {rates
             ? `, actualizadas ${new Date(rates.fetchedAt).toLocaleString("es-ES")}`
             : ""}
-          . La respuesta con base USD incluye todas las monedas mostradas.
+          .
         </p>
         {error ? (
           <p className="mt-3 text-[14px] text-expense" role="alert">

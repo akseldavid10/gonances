@@ -52,11 +52,13 @@ function rangeToDates(
   startDate: string,
   endDate: string,
 ): { start?: string; end?: string } {
+  // "Este mes" es el del calendario de quien mira, no el de UTC: a las 21 h
+  // del último día del mes en Bogotá, UTC ya va por el mes siguiente.
   const now = new Date();
   const dateOnly = (year: number, month: number, day: number) =>
     new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10);
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth();
+  const year = now.getFullYear();
+  const month = now.getMonth();
 
   if (range === "month") {
     return {
@@ -418,6 +420,7 @@ export function TransactionsBrowser() {
                       color: "#6d7c72",
                       icon: "HelpCircle",
                     };
+                  const label = `${t.description || cat.name}, ${shortDate(t.date)}`;
                   return (
                     <tr
                       key={t.id}
@@ -427,7 +430,11 @@ export function TransactionsBrowser() {
                         {shortDate(t.date)}
                       </td>
                       <td className="py-3 align-middle text-[14px] text-ink">
-                        {t.description}
+                        {t.description || (
+                          <span className="text-ink-faint">
+                            Sin descripción
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 align-middle">
                         <span className="flex items-center gap-2.5 whitespace-nowrap">
@@ -452,7 +459,7 @@ export function TransactionsBrowser() {
                         <button
                           type="button"
                           onClick={() => setEditing(t)}
-                          aria-label={`Editar ${t.description}`}
+                          aria-label={`Editar ${label}`}
                           className="rounded p-1.5 text-ink-faint hover:bg-band hover:text-ink"
                         >
                           <Pencil size={16} />
@@ -460,7 +467,7 @@ export function TransactionsBrowser() {
                         <button
                           type="button"
                           onClick={() => setDeleting(t)}
-                          aria-label={`Eliminar ${t.description}`}
+                          aria-label={`Eliminar ${label}`}
                           className="ml-1 rounded p-1.5 text-ink-faint hover:bg-expense-tint hover:text-expense"
                         >
                           <Trash2 size={16} />

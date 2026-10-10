@@ -246,6 +246,7 @@ export function NewTransactionModal({
             id="description"
             name="description"
             defaultValue={editing?.description ?? ""}
+            maxLength={200}
             placeholder="Mercado del barrio"
           />
         </Field>

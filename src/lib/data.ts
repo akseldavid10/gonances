@@ -15,7 +15,8 @@ export type Transaction = {
   id: string;
   amount: number;
   type: TxType;
-  description: string;
+  /** Opcional en la API: llega `null` si no se escribió nada. */
+  description: string | null;
   date: string; // yyyy-mm-dd
   categoryId: string;
   category?: Pick<Category, "name" | "color" | "icon" | "type" | "isCustom">;
@@ -110,82 +111,6 @@ export function categoryById(id: string): Category | null {
   return categories.find((c) => c.id === id) ?? null;
 }
 
-const DESCRIPTIONS: Record<string, string[]> = {
-  "c-food": [
-    "Mercado del barrio",
-    "Almuerzo con Sofía",
-    "Panadería",
-    "Verdulería",
-    "Pedido a domicilio",
-    "Café de la esquina",
-  ],
-  "c-transport": [
-    "Recarga de tarjeta",
-    "Taxi al aeropuerto",
-    "Combustible",
-    "Pasaje interurbano",
-    "Estacionamiento",
-  ],
-  "c-services": ["Luz", "Agua", "Internet fibra", "Plan de celular", "Gas"],
-  "c-leisure": [
-    "Cine con amigos",
-    "Concierto",
-    "Libros",
-    "Salida de fin de semana",
-    "Partido de fútbol",
-  ],
-  "c-health": [
-    "Farmacia",
-    "Consulta dentista",
-    "Vitaminas",
-    "Sesión de kinesiología",
-  ],
-  "c-home": [
-    "Alquiler",
-    "Reparación del grifo",
-    "Artículos de limpieza",
-    "Lámpara nueva",
-  ],
-  "c-pets": ["Alimento para Nube", "Vacuna anual", "Arena sanitaria"],
-  "c-subs": ["Streaming", "Almacenamiento en la nube", "Gimnasio"],
-  "c-salary": ["Sueldo mensual"],
-  "c-other-income": [
-    "Venta de bicicleta",
-    "Reintegro de gastos",
-    "Regalo de cumpleaños",
-  ],
-  "c-freelance": ["Rediseño de web", "Sesión de fotos", "Consultoría"],
-};
-
-/** PRNG determinista: los datos deben ser idénticos en servidor y cliente. */
-function mulberry32(seed: number) {
-  let a = seed;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-const EXPENSE_PLAN: { id: string; count: number; min: number; max: number }[] =
-  [
-    { id: "c-food", count: 6, min: 12, max: 95 },
-    { id: "c-transport", count: 3, min: 8, max: 60 },
-    { id: "c-services", count: 3, min: 25, max: 90 },
-    { id: "c-leisure", count: 2, min: 15, max: 120 },
-    { id: "c-health", count: 1, min: 18, max: 80 },
-    { id: "c-home", count: 2, min: 40, max: 220 },
-    { id: "c-pets", count: 1, min: 14, max: 70 },
-    { id: "c-subs", count: 2, min: 6, max: 32 },
-  ];
-
-function iso(year: number, month: number, day: number): string {
-  const mm = String(month + 1).padStart(2, "0");
-  const dd = String(day).padStart(2, "0");
-  return `${year}-${mm}-${dd}`;
-}
 /* ── Agregados que hoy calcula el cliente y mañana devolverá /analytics ── */
 
 export function inMonth(tx: Transaction, year: number, month: number) {

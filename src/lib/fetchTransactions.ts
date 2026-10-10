@@ -16,7 +16,7 @@ function serializeTransaction(
     id: transaction.id,
     amount: convertedNumber(transaction.amount, rate),
     type: transaction.type,
-    description: transaction.description ?? "",
+    description: transaction.description,
     date: transaction.date.toISOString().slice(0, 10),
     categoryId: transaction.categoryId,
     category: {

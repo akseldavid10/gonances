@@ -26,24 +26,24 @@ export type ChartPalette = {
 
 const palettes: Record<ResolvedTheme, ChartPalette> = {
   light: {
-    axis: "#6d7c72",
-    grid: "#d6dcc8",
-    rule: "#c3cbb4",
-    surface: "#f7f8f2",
-    band: "#dce2ce",
+    axis: "#65655f",
+    grid: "#dfdfda",
+    rule: "#cfcfc9",
+    surface: "#fafaf8",
+    band: "#e6e6e2",
     income: "#2f8f63",
     expense: "#a32438",
-    other: "#6d7c72",
+    other: "#65655f",
   },
   dark: {
-    axis: "#8b978a",
-    grid: "#2b372d",
-    rule: "#3a4a3d",
-    surface: "#1b241d",
-    band: "#222d24",
+    axis: "#96968e",
+    grid: "#30302d",
+    rule: "#44443f",
+    surface: "#1f1f1d",
+    band: "#282826",
     income: "#4fb984",
     expense: "#e0596f",
-    other: "#8b978a",
+    other: "#96968e",
   },
 };
 
