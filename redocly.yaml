@@ -1,0 +1,5 @@
+extends:
+  - recommended
+rules:
+  # The Google OAuth callback correctly ends with a 307 redirect on success.
+  operation-2xx-response: off

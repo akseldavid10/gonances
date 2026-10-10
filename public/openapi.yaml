@@ -1,0 +1,392 @@
+openapi: 3.1.0
+info:
+  title: Gonances API
+  version: 1.0.0
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  description: >-
+    API REST de Gonances. Los handlers están implementados en Next.js Route
+    Handlers y persisten datos en PostgreSQL mediante Prisma. La autenticación
+    usa cookies HttpOnly, no un token enviado por el cliente en el body.
+servers:
+  - url: /api/v1
+    description: Prefijo base de la API; usa el origen del entorno.
+security:
+  - AccessCookie: []
+paths:
+  /auth/register:
+    post:
+      operationId: registerLocalAccount
+      security: []
+      summary: Crear una cuenta local
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, username, termsAccepted]
+              properties:
+                email: { type: string, format: email }
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 72
+                  description: Debe incluir una mayúscula y un número; se limita a 72 bytes por bcrypt.
+                username: { type: string, minLength: 2, maxLength: 80 }
+                termsAccepted: { type: boolean, const: true }
+      responses:
+        "201":
+          description: Cuenta creada; configura cookies de access y refresh.
+          headers:
+            Set-Cookie: { schema: { type: string } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { description: Email o nombre ya registrado }
+        "429": { description: Límite de intentos alcanzado; incluye Retry-After }
+  /auth/login:
+    post:
+      operationId: loginLocalAccount
+      security: []
+      summary: Iniciar sesión local
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200": { description: Sesión iniciada; configura cookies HttpOnly }
+        "401": { description: Credenciales inválidas }
+        "429": { description: Límite de intentos alcanzado; incluye Retry-After }
+  /auth/google:
+    get:
+      operationId: completeGoogleOAuth
+      security: []
+      summary: Callback OAuth de Google
+      description: Recibe el authorization code y state de Google, verifica estado e identidad y redirige al dashboard.
+      parameters:
+        - in: query
+          name: code
+          required: true
+          schema: { type: string }
+        - in: query
+          name: state
+          required: true
+          schema: { type: string }
+      responses:
+        "307": { description: Redirección al panel con cookies de sesión }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /auth/refresh:
+    post:
+      operationId: refreshSession
+      summary: Rotar la sesión refresh y renovar access/refresh cookies
+      responses:
+        "200": { description: Access y refresh tokens rotados }
+        "401": { description: "Refresh ausente, expirado, reutilizado o revocado" }
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Cerrar la sesión del navegador
+      responses:
+        "200": { description: Sesión revocada en el servidor y cookies eliminadas }
+        "405": { description: Método HTTP no soportado }
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      summary: Obtener el perfil autenticado
+      responses:
+        "200": { description: Perfil del usuario }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    put:
+      operationId: updateCurrentUser
+      summary: Actualizar nombre o moneda preferida
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                username: { type: string, minLength: 2, maxLength: 80 }
+                currency: { $ref: "#/components/schemas/CurrencyCode" }
+      responses:
+        "200": { description: Perfil actualizado }
+        "400": { $ref: "#/components/responses/BadRequest" }
+    delete:
+      operationId: deleteCurrentUser
+      summary: Eliminar la cuenta, sus movimientos y categorías personalizadas
+      requestBody:
+        description: Contraseña requerida para cuentas locales; no requerida para Google.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password: { type: string }
+      responses:
+        "200": { description: Cuenta eliminada y cookies borradas }
+        "401": { description: Sesión o contraseña inválida }
+  /exchange-rates:
+    get:
+      operationId: getExchangeRates
+      summary: Obtener las tasas de cambio disponibles con base USD
+      responses:
+        "200":
+          description: Tasas almacenadas y fecha de actualización
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [baseCode, rates, fetchedAt]
+                properties:
+                  baseCode: { type: string, const: USD }
+                  rates:
+                    type: object
+                    additionalProperties: { type: string }
+                  fetchedAt: { type: string, format: date-time }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { description: No hay tasas disponibles }
+  /users/me/password:
+    put:
+      operationId: changePassword
+      summary: Cambiar la contraseña local con verificación de la anterior
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string }
+                newPassword:
+                  type: string
+                  minLength: 8
+                  maxLength: 72
+                  description: Debe incluir una mayúscula y un número.
+      responses:
+        "200": { description: Contraseña cambiada; invalida sesiones existentes }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { description: Contraseña actual incorrecta }
+        "429": { description: Límite de intentos alcanzado; incluye Retry-After }
+  /users/me/auth-method:
+    get:
+      operationId: getCurrentAuthMethod
+      summary: Consultar el método de autenticación de la cuenta
+      responses:
+        "200": { description: Indica si la cuenta usa contraseña local }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /categories:
+    get:
+      operationId: listCategories
+      summary: Listar categorías globales y propias
+      responses:
+        "200": { description: Categorías disponibles para el usuario }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      operationId: createCategory
+      summary: Crear categoría personalizada (máximo cinco)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type, icon, color]
+              properties:
+                name: { type: string, maxLength: 24 }
+                type: { $ref: "#/components/schemas/MovementType" }
+                icon: { type: string }
+                color: { type: string, pattern: "^#[0-9a-fA-F]{6}$" }
+      responses:
+        "201": { description: Categoría creada }
+        "409": { description: Se alcanzó el máximo de cinco categorías }
+  /categories/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      operationId: updateCategory
+      summary: Cambiar nombre, icono y color de una categoría propia
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, icon, color]
+              properties:
+                name: { type: string, maxLength: 24 }
+                icon: { type: string }
+                color: { type: string, pattern: "^#[0-9a-fA-F]{6}$" }
+      responses:
+        "200": { description: Categoría actualizada }
+        "404": { description: Categoría propia no encontrada }
+    delete:
+      operationId: deleteCategory
+      summary: Eliminar una categoría propia sin transacciones asociadas
+      responses:
+        "200": { description: Categoría eliminada }
+        "409": { description: Hay movimientos que usan la categoría }
+        "404": { description: Categoría propia no encontrada }
+  /transactions:
+    get:
+      operationId: listTransactions
+      summary: Listar movimientos filtrados y paginados del usuario
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+        - in: query
+          name: type
+          schema: { $ref: "#/components/schemas/MovementType" }
+        - in: query
+          name: category_id
+          schema: { type: string }
+        - in: query
+          name: start_date
+          schema: { type: string, format: date }
+        - in: query
+          name: end_date
+          schema: { type: string, format: date }
+        - in: query
+          name: search
+          schema: { type: string }
+      responses:
+        "200": { description: Página de transacciones convertidas y código de moneda }
+        "400": { $ref: "#/components/responses/BadRequest" }
+    post:
+      operationId: createTransaction
+      summary: Crear ingreso o gasto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TransactionUpdateInput" }
+      responses:
+        "201": { description: Movimiento creado }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /transactions/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      operationId: updateTransaction
+      summary: Actualizar movimiento propio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TransactionInput" }
+      responses:
+        "200": { description: Movimiento actualizado }
+        "404": { description: Movimiento propio no encontrado }
+    delete:
+      operationId: deleteTransaction
+      summary: Eliminar movimiento propio
+      responses:
+        "200": { description: Movimiento eliminado }
+        "404": { description: Movimiento propio no encontrado }
+  /analytics/summary:
+    get:
+      operationId: getAnalyticsSummary
+      summary: Obtener balance acumulado e ingresos/gastos de un mes
+      parameters:
+        - { in: query, name: month, schema: { type: integer, minimum: 0, maximum: 11 } }
+        - { in: query, name: year, schema: { type: integer, minimum: 1900, maximum: 9999 } }
+      responses:
+        "200": { description: Totales convertidos y código de moneda del usuario }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /analytics/expenses-by-category:
+    get:
+      operationId: getExpensesByCategory
+      summary: Desglose de gastos de un mes por categoría
+      parameters:
+        - { in: query, name: month, schema: { type: integer, minimum: 0, maximum: 11 } }
+        - { in: query, name: year, schema: { type: integer, minimum: 1900, maximum: 9999 } }
+      responses:
+        "200": { description: "Importes convertidos, porcentajes y código de moneda" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /analytics/monthly-trends:
+    get:
+      operationId: getMonthlyTrends
+      summary: Tendencia de los últimos seis meses
+      responses:
+        "200": { description: "Ingresos y gastos convertidos, con código de moneda" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /uploads/avatar:
+    post:
+      operationId: uploadAvatar
+      summary: Validar y cargar imagen de avatar (JPG, PNG, WebP, máximo 2 MB)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "201": { description: Imagen recibida en Cloudinary }
+        "413": { description: Archivo excede 2 MB }
+        "503": { description: Cloudinary no configurado }
+components:
+  securitySchemes:
+    AccessCookie:
+      type: apiKey
+      in: cookie
+      name: accesstoken
+  parameters:
+    Id:
+      in: path
+      name: id
+      required: true
+      schema: { type: string }
+  schemas:
+    MovementType:
+      type: string
+      enum: [INCOME, EXPENSE]
+    CurrencyCode:
+      type: string
+      enum: [USD, EUR, JPY, GBP, COP]
+    TransactionInput:
+      type: object
+      required: [amount, type, date, category_id]
+      properties:
+        amount:
+          oneOf:
+            - { type: number, exclusiveMinimum: 0, multipleOf: 0.01 }
+            - { type: string, pattern: '^(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{1,2})?$' }
+          description: Importe expresado en la moneda preferida del usuario autenticado.
+        type: { $ref: "#/components/schemas/MovementType" }
+        description: { type: [string, "null"], maxLength: 200 }
+        date: { type: string, format: date }
+        category_id: { type: string }
+    TransactionUpdateInput:
+      type: object
+      minProperties: 1
+      properties:
+        amount:
+          oneOf:
+            - { type: number, exclusiveMinimum: 0, multipleOf: 0.01 }
+            - { type: string, pattern: '^(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{1,2})?$' }
+          description: Importe expresado en la moneda preferida del usuario autenticado.
+        type: { $ref: "#/components/schemas/MovementType" }
+        description: { type: [string, "null"], maxLength: 200 }
+        date: { type: string, format: date }
+        category_id: { type: string }
+  responses:
+    Unauthorized:
+      description: Sesión ausente, inválida, vencida o revocada
+    BadRequest:
+      description: Datos de entrada inválidos
