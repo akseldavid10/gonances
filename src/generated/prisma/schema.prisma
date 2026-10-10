@@ -19,20 +19,40 @@ enum MovementType {
   EXPENSE
 }
 
-model User {
-  id                  String     @id @default(uuid())
-  email               String     @unique
-  hashedPassword      String?    @map("hashed_password")
-  username            String
-  metodoAutenticacion AuthMethod @default(local)
-  avatarUrl           String?    @map("avatar_url")
-  googleId            String?    @unique @map("google_id")
-  createdAt           DateTime   @default(now()) @map("created_at")
+enum CurrencyCode {
+  USD
+  EUR
+  JPY
+  GBP
+  COP
+}
 
-  categories   Category[]
-  transactions Transaction[]
+model User {
+  id                  String       @id @default(uuid())
+  email               String       @unique
+  hashedPassword      String?      @map("hashed_password")
+  username            String
+  metodoAutenticacion AuthMethod   @default(local)
+  avatarUrl           String?      @map("avatar_url")
+  googleId            String?      @unique @map("google_id")
+  currency            CurrencyCode @default(USD)
+  tokenVersion        Int          @default(0) @map("token_version")
+  createdAt           DateTime     @default(now()) @map("created_at")
+
+  categories      Category[]
+  transactions    Transaction[]
+  refreshSessions RefreshSession[]
 
   @@map("users")
+}
+
+model ExchangeRateCache {
+  id            String   @id
+  rates         Json
+  fetchedAt     DateTime @map("fetched_at")
+  nextRefreshAt DateTime @map("next_refresh_at")
+
+  @@map("exchange_rate_cache")
 }
 
 model Category {
@@ -43,12 +63,13 @@ model Category {
   color String
 
   userId String? @map("user_id")
-  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   transactions Transaction[]
 
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@index([userId, type])
   @@map("categories")
 }
 
@@ -57,7 +78,7 @@ model Transaction {
   amount      Decimal      @db.Decimal(10, 2)
   type        MovementType
   description String?
-  date        DateTime
+  date        DateTime     @db.Date
 
   userId String @map("user_id")
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -67,5 +88,33 @@ model Transaction {
 
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@index([userId, date])
+  @@index([categoryId])
   @@map("transactions")
+}
+
+model RefreshSession {
+  id                     String    @id
+  userId                 String    @map("user_id")
+  currentRefreshTokenId  String    @unique @map("current_refresh_token_id")
+  previousRefreshTokenId String?   @map("previous_refresh_token_id")
+  currentIssuedAt        DateTime  @map("current_issued_at")
+  expiresAt              DateTime  @map("expires_at")
+  rotatedAt              DateTime? @map("rotated_at")
+  revokedAt              DateTime? @map("revoked_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("refresh_sessions")
+}
+
+model RateLimitBucket {
+  key             String   @id
+  count           Int
+  windowStartedAt DateTime @map("window_started_at")
+  expiresAt       DateTime @map("expires_at")
+
+  @@index([expiresAt])
+  @@map("rate_limit_buckets")
 }
