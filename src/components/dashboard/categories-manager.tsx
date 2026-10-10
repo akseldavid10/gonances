@@ -13,6 +13,7 @@ import { Modal } from "@/components/ui/modal";
 import { Panel } from "@/components/ui/panel";
 import { useToast } from "@/components/ui/toast";
 import { type Category, MAX_CUSTOM_CATEGORIES, type TxType } from "@/lib/data";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 const SWATCHES = [
   "#c4611a",
@@ -29,12 +30,41 @@ const SWATCHES = [
 
 export function CategoriesManager({ items }: { items: Category[] }) {
   const toast = useToast();
+  const [categories, setCategories] = useState(items);
   const [editing, setEditing] = useState<Category | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Category | null>(null);
+  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(
+    null,
+  );
 
-  const system = items.filter((c) => !c.isCustom);
-  const custom = items.filter((c) => c.isCustom);
+  async function deleteCategory(category: Category) {
+    if (deletingCategoryId) return;
+    setDeletingCategoryId(category.id);
+    try {
+      const response = await fetchWithAuth(
+        `/api/v1/categories/${category.id}`,
+        { method: "DELETE" },
+      );
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        toast(data?.error ?? "No se pudo eliminar la categoría", "warn");
+        return;
+      }
+      toast(`Categoría ${category.name} eliminada`);
+      setCategories((current) =>
+        current.filter((item) => item.id !== category.id),
+      );
+      setDeleting(null);
+    } catch {
+      toast("No se pudo conectar con el servidor", "warn");
+    } finally {
+      setDeletingCategoryId(null);
+    }
+  }
+
+  const system = categories.filter((c) => !c.isCustom);
+  const custom = categories.filter((c) => c.isCustom);
   const left = MAX_CUSTOM_CATEGORIES - custom.length;
 
   return (
@@ -137,11 +167,18 @@ export function CategoriesManager({ items }: { items: Category[] }) {
           setCreating(false);
           setEditing(null);
         }}
-        onSaved={(name) => {
+        onSaved={(category) => {
           toast(
             editing
-              ? `Categoría ${name} actualizada`
-              : `Categoría ${name} creada`,
+              ? `Categoría ${category.name} actualizada`
+              : `Categoría ${category.name} creada`,
+          );
+          setCategories((current) =>
+            editing
+              ? current.map((item) =>
+                  item.id === category.id ? category : item,
+                )
+              : [...current, category],
           );
           setCreating(false);
           setEditing(null);
@@ -151,6 +188,7 @@ export function CategoriesManager({ items }: { items: Category[] }) {
       <Modal
         open={deleting !== null}
         onClose={() => setDeleting(null)}
+        closeDisabled={deletingCategoryId !== null}
         title="¿Eliminar esta categoría?"
         width="sm"
       >
@@ -164,18 +202,20 @@ export function CategoriesManager({ items }: { items: Category[] }) {
               primero tendrás que moverlos a otra categoría.
             </p>
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button variant="outline" onClick={() => setDeleting(null)}>
+              <Button
+                variant="outline"
+                disabled={deletingCategoryId !== null}
+                onClick={() => setDeleting(null)}
+              >
                 Conservar
               </Button>
               <Button
                 variant="danger"
-                onClick={() => {
-                  toast(`Categoría ${deleting.name} eliminada`);
-                  setDeleting(null);
-                }}
+                disabled={deletingCategoryId !== null}
+                onClick={() => deleteCategory(deleting)}
               >
                 <Trash2 size={16} />
-                Eliminar
+                {deletingCategoryId ? "Eliminando…" : "Eliminar"}
               </Button>
             </div>
           </>
@@ -208,12 +248,14 @@ function CategoryModal({
   open: boolean;
   editing: Category | null;
   onClose: () => void;
-  onSaved: (name: string) => void;
+  onSaved: (category: Category) => void;
 }) {
   const [name, setName] = useState("");
   const [type, setType] = useState<TxType>("EXPENSE");
   const [color, setColor] = useState(SWATCHES[0]);
   const [icon, setIcon] = useState<IconName>("ShoppingBasket");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Al abrir, el formulario toma los valores de la categoría en edición.
   const [lastOpened, setLastOpened] = useState(false);
@@ -227,16 +269,43 @@ function CategoryModal({
     }
   }
 
-  function onSubmit(e: SubmitEvent<HTMLFormElement>) {
+  async function onSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!name.trim()) return;
-    onSaved(name.trim());
+    if (!name.trim() || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const response = await fetchWithAuth(
+        editing ? `/api/v1/categories/${editing.id}` : "/api/v1/categories",
+        {
+          method: editing ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(),
+            ...(editing ? {} : { type }),
+            icon,
+            color,
+          }),
+        },
+      );
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.item) {
+        setError(data?.error ?? "No se pudo guardar la categoría");
+        return;
+      }
+      onSaved(data.item as Category);
+    } catch {
+      setError("No se pudo conectar con el servidor");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
     <Modal
       open={open}
       onClose={onClose}
+      closeDisabled={submitting}
       title={editing ? "Editar categoría" : "Nueva categoría"}
       description="Ponle nombre, elige si es para ingresos o gastos y dale una tinta."
     >
@@ -252,7 +321,7 @@ function CategoryModal({
           />
         </Field>
 
-        <fieldset>
+        <fieldset disabled={Boolean(editing)}>
           <legend className="mb-1.5 text-[13px] font-medium text-ink-soft">
             Sirve para
           </legend>
@@ -265,7 +334,9 @@ function CategoryModal({
             ).map((opt) => (
               <label
                 key={opt.value}
-                className={`flex h-11 cursor-pointer items-center justify-center rounded border text-[15px] font-medium transition-colors ${
+                className={`flex h-11 items-center justify-center rounded border text-[15px] font-medium transition-colors ${
+                  editing ? "cursor-not-allowed opacity-70" : "cursor-pointer"
+                } ${
                   type === opt.value
                     ? "border-ink bg-band/60 text-ink"
                     : "border-rule bg-sheet text-ink-soft hover:border-ink/40"
@@ -284,6 +355,12 @@ function CategoryModal({
             ))}
           </div>
         </fieldset>
+        {editing && (
+          <p className="-mt-2 text-[12px] text-ink-faint">
+            El tipo no se puede cambiar porque debe coincidir con sus
+            movimientos.
+          </p>
+        )}
 
         <fieldset>
           <legend className="mb-1.5 text-[13px] font-medium text-ink-soft">
@@ -344,11 +421,20 @@ function CategoryModal({
         </fieldset>
 
         <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
             Cancelar
           </Button>
-          <Button type="submit">
-            {editing ? "Guardar cambios" : "Crear categoría"}
+          {error ? (
+            <p role="alert" className="text-sm text-expense">
+              {error}
+            </p>
+          ) : null}
+          <Button type="submit" disabled={submitting}>
+            {submitting
+              ? "Guardando…"
+              : editing
+                ? "Guardar cambios"
+                : "Crear categoría"}
           </Button>
         </div>
       </form>

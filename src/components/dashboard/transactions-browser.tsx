@@ -8,53 +8,82 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { CurrencySwitcher } from "@/components/dashboard/currency-switcher";
 import { NewTransactionModal } from "@/components/dashboard/new-transaction-modal";
+import { useCurrentUser } from "@/components/provider/user-provider";
 import { Button } from "@/components/ui/button";
 import { CategoryStamp } from "@/components/ui/category-icon";
 import { inputClass, Select } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-import { categoryById, type Transaction, type TxType } from "@/lib/data";
+import {
+  type Category,
+  categoryById,
+  type Transaction,
+  type TxType,
+} from "@/lib/data";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import {
   longDate,
   money,
+  negativePositive,
   shortDate,
   signedMoney,
-  negativePositive,
 } from "@/lib/format";
-import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 const PER_PAGE = 10;
 
 type TypeFilter = "ALL" | TxType;
-type RangeFilter = "month" | "last-month" | "quarter" | "all";
+type RangeFilter = "month" | "last-month" | "quarter" | "custom" | "all";
 
 const ranges: { value: RangeFilter; label: string }[] = [
+  { value: "all", label: "Todo el historial" },
   { value: "month", label: "Este mes" },
   { value: "last-month", label: "Mes pasado" },
   { value: "quarter", label: "Últimos 3 meses" },
-  { value: "all", label: "Todo el historial" },
+  { value: "custom", label: "Rango personalizado" },
 ];
 
 // Calcula start_date/end_date en base al filtro de rango, para mandarlos al server.
-function rangeToDates(range: RangeFilter): { start?: string; end?: string } {
+function rangeToDates(
+  range: RangeFilter,
+  startDate: string,
+  endDate: string,
+): { start?: string; end?: string } {
   const now = new Date();
+  const dateOnly = (year: number, month: number, day: number) =>
+    new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10);
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
 
   if (range === "month") {
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    return { start: start.toISOString() };
+    return {
+      start: dateOnly(year, month, 1),
+      end: dateOnly(year, month + 1, 0),
+    };
   }
 
   if (range === "last-month") {
-    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-    return { start: start.toISOString(), end: end.toISOString() };
+    return {
+      start: dateOnly(year, month - 1, 1),
+      end: dateOnly(year, month, 0),
+    };
   }
 
   if (range === "quarter") {
-    const start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-    return { start: start.toISOString() };
+    return {
+      start: dateOnly(year, month - 2, 1),
+      end: dateOnly(year, month + 1, 0),
+    };
+  }
+
+  if (range === "custom") {
+    return {
+      ...(startDate ? { start: startDate } : {}),
+      ...(endDate ? { end: endDate } : {}),
+    };
   }
 
   // "all": sin límites de fecha
@@ -62,7 +91,11 @@ function rangeToDates(range: RangeFilter): { start?: string; end?: string } {
 }
 
 export function TransactionsBrowser() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const toast = useToast();
+  const { currentUser } = useCurrentUser();
+  const currency = currentUser?.currency ?? "USD";
   const [items, setItems] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
@@ -70,29 +103,60 @@ export function TransactionsBrowser() {
   const [error, setError] = useState<string | null>(null);
 
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [type, setType] = useState<TypeFilter>("ALL");
-  const [range, setRange] = useState<RangeFilter>("month");
+  const [range, setRange] = useState<RangeFilter>("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryId, setCategoryId] = useState("ALL");
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Transaction | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const requestSequence = useRef(0);
+
+  useEffect(() => {
+    if (searchParams.get("new") === "1") setCreating(true);
+  }, [searchParams]);
+
+  function closeCreation() {
+    setCreating(false);
+    if (searchParams.has("new"))
+      router.replace("/transactions", { scroll: false });
+  }
+
+  useEffect(() => {
+    const timeout = window.setTimeout(
+      () => setDebouncedQuery(query.trim()),
+      250,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [query]);
 
   // Pide las transacciones al API, ya paginadas/filtradas/ordenadas por el
   // server. El endpoint saca el usuario (email/sub) del token, así que aquí
   // solo mandamos page, limit y los filtros activos.
   const fetchTransactions = useCallback(async () => {
+    const requestId = ++requestSequence.current;
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
+      if (range === "custom" && startDate && endDate && startDate > endDate) {
+        setError("La fecha inicial no puede ser posterior a la fecha final");
+        return;
+      }
       params.set("page", String(page));
       params.set("limit", String(PER_PAGE));
       if (type !== "ALL") params.set("type", type);
-      if (query.trim()) params.set("search", query.trim());
+      if (debouncedQuery) params.set("search", debouncedQuery);
 
-      const { start, end } = rangeToDates(range);
+      const { start, end } = rangeToDates(range, startDate, endDate);
       if (start) params.set("start_date", start);
       if (end) params.set("end_date", end);
+      if (categoryId !== "ALL") params.set("category_id", categoryId);
 
       const res = await fetchWithAuth(
         `/api/v1/transactions?${params.toString()}`,
@@ -115,19 +179,40 @@ export function TransactionsBrowser() {
         pages: number;
       } = await res.json();
 
-      setItems(Array.isArray(data.items) ? data.items : []);
-      setTotal(data.total ?? 0);
-      setPages(data.pages && data.pages > 0 ? data.pages : 1);
+      if (requestId === requestSequence.current) {
+        setItems(Array.isArray(data.items) ? data.items : []);
+        setTotal(data.total ?? 0);
+        setPages(data.pages && data.pages > 0 ? data.pages : 1);
+      }
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "No se pudieron cargar los movimientos",
-      );
+      if (requestId === requestSequence.current) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudieron cargar los movimientos",
+        );
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestSequence.current) setLoading(false);
     }
-  }, [page, type, query, range]);
+  }, [page, type, debouncedQuery, range, startDate, endDate, categoryId]);
+
+  useEffect(() => {
+    let active = true;
+    fetchWithAuth("/api/v1/categories", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok)
+          throw new Error("No se pudieron cargar las categorías");
+        const data = await response.json();
+        if (active) setCategories(Array.isArray(data.items) ? data.items : []);
+      })
+      .catch(() => {
+        if (active) toast("No se pudieron cargar las categorías", "warn");
+      });
+    return () => {
+      active = false;
+    };
+  }, [toast]);
 
   useEffect(() => {
     fetchTransactions();
@@ -153,16 +238,23 @@ export function TransactionsBrowser() {
   // Después de crear/editar/borrar hay que volver a pedir la lista
   // para que la tabla quede sincronizada con lo que quedó en la DB.
   async function handleDelete(t: Transaction) {
+    if (deletingId) return;
+    setDeletingId(t.id);
     try {
-      const res = await fetchWithAuth(`/api/v1/transactions/?id=${t.id}`, {
-        method: "DELETE",
-      });
+      const res = await fetchWithAuth(
+        `/api/v1/transactions/${encodeURIComponent(t.id)}`,
+        {
+          method: "DELETE",
+        },
+      );
       if (!res.ok) throw new Error("No se pudo eliminar");
       toast("Movimiento eliminado");
       setDeleting(null);
-      fetchTransactions();
+      await fetchTransactions();
     } catch {
-      toast("No se pudo eliminar el movimiento");
+      toast("No se pudo eliminar el movimiento", "warn");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -223,6 +315,48 @@ export function TransactionsBrowser() {
           ))}
         </Select>
 
+        <Select
+          aria-label="Filtrar por categoría"
+          value={categoryId}
+          onChange={(e) => reset(setCategoryId)(e.target.value)}
+          className="w-48 shrink-0"
+        >
+          <option value="ALL">Todas las categorías</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </Select>
+
+        {range === "custom" ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="sr-only" htmlFor="tx-start-date">
+              Desde
+            </label>
+            <input
+              id="tx-start-date"
+              type="date"
+              value={startDate}
+              onChange={(event) => reset(setStartDate)(event.target.value)}
+              className={inputClass}
+            />
+            <label className="sr-only" htmlFor="tx-end-date">
+              Hasta
+            </label>
+            <input
+              id="tx-end-date"
+              type="date"
+              value={endDate}
+              min={startDate || undefined}
+              onChange={(event) => reset(setEndDate)(event.target.value)}
+              className={inputClass}
+            />
+          </div>
+        ) : null}
+
+        <CurrencySwitcher onChanged={fetchTransactions} />
+
         <Button onClick={() => setCreating(true)}>
           <Plus size={16} />
           Agregar movimiento
@@ -278,7 +412,12 @@ export function TransactionsBrowser() {
                 </tr>
               ) : (
                 visible.map((t) => {
-                  const cat = categoryById(t.categoryId);
+                  const cat = categoryById(t.categoryId) ??
+                    t.category ?? {
+                      name: "Categoría",
+                      color: "#6d7c72",
+                      icon: "HelpCircle",
+                    };
                   return (
                     <tr
                       key={t.id}
@@ -307,7 +446,7 @@ export function TransactionsBrowser() {
                           t.type === "INCOME" ? "text-income" : "text-expense"
                         }`}
                       >
-                        {signedMoney(t.amount, t.type)}
+                        {signedMoney(t.amount, t.type, currency)}
                       </td>
                       <td className="px-4 py-3 text-right align-middle whitespace-nowrap sm:px-5">
                         <button
@@ -352,7 +491,9 @@ export function TransactionsBrowser() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rule px-4 py-3 sm:px-5">
             <p className="text-[13px] text-ink-faint">
               {total} movimientos, saldo de esta página{" "}
-              <span className="num text-ink">{negativePositive(items)}</span>
+              <span className="num text-ink">
+                {negativePositive(items, currency)}
+              </span>
             </p>
             <div className="flex items-center gap-2">
               <Button
@@ -383,9 +524,9 @@ export function TransactionsBrowser() {
 
       <NewTransactionModal
         open={creating}
-        onClose={() => setCreating(false)}
+        onClose={closeCreation}
         onSaved={() => {
-          setCreating(false);
+          closeCreation();
           fetchTransactions();
         }}
       />
@@ -402,6 +543,7 @@ export function TransactionsBrowser() {
       <Modal
         open={deleting !== null}
         onClose={() => setDeleting(null)}
+        closeDisabled={deletingId !== null}
         title="¿Eliminar este movimiento?"
         width="sm"
       >
@@ -410,19 +552,29 @@ export function TransactionsBrowser() {
             <p className="text-[15px] leading-relaxed text-ink-soft">
               Vas a borrar una transacción de tipo{" "}
               <strong className="font-semibold text-ink">
-                {deleting.type}
+                {deleting.type === "INCOME" ? "Ingreso" : "Gasto"}
               </strong>{" "}
               hecha el {longDate(deleting.date)} por un valor de{" "}
-              <span className="num text-ink">{money(deleting.amount)}</span>. No
-              se podra deshacer.
+              <span className="num text-ink">
+                {money(deleting.amount, currency)}
+              </span>
+              . No se podrá deshacer.
             </p>
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button variant="outline" onClick={() => setDeleting(null)}>
+              <Button
+                variant="outline"
+                disabled={deletingId !== null}
+                onClick={() => setDeleting(null)}
+              >
                 Conservar
               </Button>
-              <Button variant="danger" onClick={() => handleDelete(deleting)}>
+              <Button
+                variant="danger"
+                disabled={deletingId !== null}
+                onClick={() => handleDelete(deleting)}
+              >
                 <Trash2 size={16} />
-                Eliminar
+                {deletingId ? "Eliminando…" : "Eliminar"}
               </Button>
             </div>
           </>

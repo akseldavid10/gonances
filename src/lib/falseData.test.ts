@@ -15,8 +15,12 @@ test("los dos gráficos tienen datos distribuidos en los seis meses visibles", (
     const transactions = getDynamicFalseTransactions(now);
     const trends = monthlyTrends(6, transactions, now);
     const months = new Set(transactions.map((t) => t.date.slice(0, 7)));
-    const start = new Date(now.getFullYear(), now.getMonth() - 5, 1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const start = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1),
+    );
+    const end = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+    );
 
     assert.equal(months.size, 6);
     assert.equal(
@@ -67,10 +71,10 @@ test("las fechas son estables dentro del mes y avanzan juntas al siguiente", () 
     const before = new Date(transaction.date);
     const after = new Date(next[index].date);
     assert.equal(
-      after.getFullYear() * 12 + after.getMonth(),
-      before.getFullYear() * 12 + before.getMonth() + 1,
+      after.getUTCFullYear() * 12 + after.getUTCMonth(),
+      before.getUTCFullYear() * 12 + before.getUTCMonth() + 1,
     );
-    assert.equal(after.getDate(), before.getDate());
+    assert.equal(after.getUTCDate(), before.getUTCDate());
     assert.equal(next[index].amount, transaction.amount);
     assert.equal(next[index].categoryId, transaction.categoryId);
   });

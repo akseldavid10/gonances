@@ -98,8 +98,10 @@ export function getDynamicFalseTransactions(now = new Date()): Transaction[] {
   }
 
   return monthlyVariation.flatMap((variation, index) => {
-    const month = new Date(now.getFullYear(), now.getMonth() - 5 + index, 1);
-    const yearMonth = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`;
+    const month = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5 + index, 1),
+    );
+    const yearMonth = `${month.getUTCFullYear()}-${String(month.getUTCMonth() + 1).padStart(2, "0")}`;
 
     return monthlyExamples.map(({ day, ...movement }, movementIndex) => ({
       ...movement,
@@ -112,8 +114,7 @@ export function getDynamicFalseTransactions(now = new Date()): Transaction[] {
               : variation.expense) *
             100,
         ) / 100,
-      // Hora local explícita: evita desplazar el día al interpretar una fecha UTC.
-      date: `${yearMonth}-${String(day).padStart(2, "0")}T12:00:00`,
+      date: `${yearMonth}-${String(day).padStart(2, "0")}`,
     }));
   });
 }

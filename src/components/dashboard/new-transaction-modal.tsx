@@ -1,13 +1,13 @@
 "use client";
 
 import { type SubmitEvent, useEffect, useState } from "react";
+import { useCurrentUser } from "@/components/provider/user-provider";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-import { categories, type Transaction, type TxType } from "@/lib/data";
+import type { Category, Transaction, TxType } from "@/lib/data";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
-import { useRouter } from "next/navigation";
 
 function today() {
   const d = new Date();
@@ -28,16 +28,42 @@ export function NewTransactionModal({
   onSaved?: () => void; // para refrescar la lista de transacciones tras guardar
 }) {
   const toast = useToast();
+  const { currentUser } = useCurrentUser();
   const [type, setType] = useState<TxType>("EXPENSE");
   const [categoryId, setCategoryId] = useState("");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const route = useRouter();
+  const currency = currentUser?.currency ?? "USD";
+  const initialAmount = editing
+    ? currency === "JPY"
+      ? String(Math.round(editing.amount))
+      : String(editing.amount)
+    : "";
 
   useEffect(() => {
     if (!open) return;
     setType(editing?.type ?? "EXPENSE");
     setCategoryId(editing?.categoryId ?? "");
-  }, [open, editing]);
+    let active = true;
+    setLoadingCategories(true);
+    fetchWithAuth("/api/v1/categories", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok)
+          throw new Error("No se pudieron cargar las categorías");
+        const data = await response.json();
+        if (active) setCategories(Array.isArray(data.items) ? data.items : []);
+      })
+      .catch(() => {
+        if (active) toast("No se pudieron cargar las categorías", "warn");
+      })
+      .finally(() => {
+        if (active) setLoadingCategories(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [open, editing, toast]);
 
   const options = categories.filter((c) => c.type === type);
 
@@ -48,15 +74,21 @@ export function NewTransactionModal({
     const formData = new FormData(form);
 
     const rawAmount = String(formData.get("amount") ?? "").replace(",", ".");
-    const amount = Number(rawAmount);
-
-    if (isNaN(amount) || amount <= 0) {
-      toast("El monto debe ser un número mayor a 0");
+    if (
+      !(currency === "JPY"
+        ? /^(?:0|[1-9]\d{0,14})$/.test(rawAmount)
+        : /^(?:0|[1-9]\d{0,14})(?:\.\d{1,2})?$/.test(rawAmount)) ||
+      Number(rawAmount) <= 0
+    ) {
+      toast(
+        "Escribe un monto mayor a 0 con un máximo de dos decimales",
+        "warn",
+      );
       return;
     }
 
     const payload = {
-      amount,
+      ...(!editing || rawAmount !== initialAmount ? { amount: rawAmount } : {}),
       type,
       description: (formData.get("description") as string) || null,
       date: formData.get("date") as string,
@@ -67,7 +99,7 @@ export function NewTransactionModal({
 
     try {
       const url = editing
-        ? `/api/v1/transactions?id=${editing.id}`
+        ? `/api/v1/transactions/${encodeURIComponent(editing.id)}`
         : "/api/v1/transactions";
       const method = editing ? "PUT" : "POST";
 
@@ -81,8 +113,7 @@ export function NewTransactionModal({
 
       if (!res.ok) {
         const errorBody = await res.json().catch(() => null);
-        route.push("/");
-        toast(errorBody?.message ?? "No se pudo guardar el movimiento");
+        toast(errorBody?.message ?? "No se pudo guardar el movimiento", "warn");
         return;
       }
 
@@ -91,7 +122,7 @@ export function NewTransactionModal({
       onClose();
     } catch (err) {
       console.error(err);
-      toast("Error de conexión, intenta de nuevo");
+      toast("Error de conexión, intenta de nuevo", "warn");
     } finally {
       setIsSubmitting(false);
     }
@@ -101,6 +132,7 @@ export function NewTransactionModal({
     <Modal
       open={open}
       onClose={onClose}
+      closeDisabled={isSubmitting}
       title={editing ? "Editar movimiento" : "Nuevo movimiento"}
       description={
         editing
@@ -156,16 +188,22 @@ export function NewTransactionModal({
               aria-hidden="true"
               className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-[15px] text-ink-faint"
             >
-              $
+              {currency}
             </span>
             <Input
               id="amount"
               name="amount"
               inputMode="decimal"
+              maxLength={18}
+              pattern={
+                currency === "JPY"
+                  ? "(?:0|[1-9][0-9]{0,14})"
+                  : "(?:0|[1-9][0-9]{0,14})(?:[.,][0-9]{1,2})?"
+              }
               required
-              defaultValue={editing ? String(editing.amount) : ""}
+              defaultValue={initialAmount}
               placeholder="0,00"
-              className="num pl-7 text-right"
+              className="num pl-14 text-right"
             />
           </div>
         </Field>
@@ -180,7 +218,9 @@ export function NewTransactionModal({
             onChange={(e) => setCategoryId(e.target.value)}
           >
             <option value="" disabled>
-              Elige una categoría
+              {loadingCategories
+                ? "Cargando categorías…"
+                : "Elige una categoría"}
             </option>
             {options.map((c) => (
               <option key={c.id} value={c.id}>
@@ -214,7 +254,10 @@ export function NewTransactionModal({
           <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button
+            type="submit"
+            disabled={isSubmitting || loadingCategories || !options.length}
+          >
             {isSubmitting
               ? "Guardando..."
               : editing

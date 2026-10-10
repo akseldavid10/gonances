@@ -1,84 +1,106 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { type NextRequest, NextResponse } from "next/server";
+import { MovementType, type Prisma } from "@/generated/prisma";
+import { parseDateOnly, serializeDateOnly } from "@/lib/date-only";
+import {
+  convertedNumber,
+  currencyToUsd,
+  getExchangeRate,
+} from "@/lib/exchange-rates";
 import getInfoToken from "@/lib/getInfoToken";
-import { MovementType, Prisma } from "@/generated/prisma";
+import { prisma } from "@/lib/prisma";
+import {
+  isValidTransactionDescription,
+  parseTransactionAmount,
+} from "@/lib/transaction-validation";
 
 export async function GET(req: NextRequest) {
   try {
-    const payload = await getInfoToken(); // { email, sub }
+    const payload = await getInfoToken();
     if (!payload?.sub) {
       return NextResponse.json({ message: "Token inválido" }, { status: 401 });
     }
-
-    // 2. Buscar usuario en base de datos
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
+      select: { currency: true },
     });
-
     if (!user) {
       return NextResponse.json(
         { message: "Usuario no encontrado" },
         { status: 404 },
       );
     }
+    const { rate } = await getExchangeRate(user.currency);
 
-    // 3. Leer query params
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = req.nextUrl;
+    const page = Number(searchParams.get("page") ?? 1);
+    const limit = Number(searchParams.get("limit") ?? 10);
+    if (
+      !Number.isInteger(page) ||
+      page < 1 ||
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > 100
+    ) {
+      return NextResponse.json(
+        { message: "page o limit inválido" },
+        { status: 400 },
+      );
+    }
+    const type = searchParams.get("type");
+    if (type && !Object.values(MovementType).includes(type as MovementType)) {
+      return NextResponse.json(
+        { message: "type debe ser INCOME o EXPENSE" },
+        { status: 400 },
+      );
+    }
+    const startValue = searchParams.get("start_date");
+    const endValue = searchParams.get("end_date");
+    const start = startValue ? parseDateOnly(startValue) : undefined;
+    const end = endValue ? parseDateOnly(endValue) : undefined;
+    if (
+      (startValue && !start) ||
+      (endValue && !end) ||
+      (start && end && start > end)
+    ) {
+      return NextResponse.json(
+        { message: "Rango de fechas inválido" },
+        { status: 400 },
+      );
+    }
 
-    const page1 = searchParams.get("page");
-    const limit1 = searchParams.get("limit");
-    const startDate = searchParams.get("start_date");
-
-    // 4. Armar filtros dinámicos
     const where: Prisma.TransactionWhereInput = {
-      userId: user.id,
+      userId: payload.sub,
     };
-
-    if (!page1 && !limit1 && !startDate) {
-      const [items, total] = await Promise.all([
-        prisma.transaction.findMany({
-          where,
-          orderBy: { createdAt: "desc" },
-          include: { category: true },
-        }),
-        prisma.transaction.count({ where }),
-      ]);
-
-      return NextResponse.json({
-        items: items,
-        total,
-      });
-    }
-
-    const page = parseInt(page1 ?? "1");
-    const limit = parseInt(limit1 ?? "10");
-    const type = searchParams.get("type"); // "INCOME" | "EXPENSE"
     const categoryId = searchParams.get("category_id");
-    const endDate = searchParams.get("end_date");
     const search = searchParams.get("search");
-
-    if (type && Object.values(MovementType).includes(type as MovementType)) {
-      where.type = type as MovementType;
+    if (search && search.length > 100) {
+      return NextResponse.json(
+        { message: "La búsqueda no puede superar 100 caracteres" },
+        { status: 400 },
+      );
     }
 
+    if (type) where.type = type as MovementType;
     if (categoryId) {
       where.categoryId = categoryId;
     }
-
-    if (startDate || endDate) {
-      where.date = {};
-      if (startDate) where.date.gte = new Date(startDate);
-      if (endDate) where.date.lte = new Date(endDate);
-    }
-
-    if (search) {
-      where.description = {
-        contains: search,
-        mode: "insensitive",
+    if (start || end) {
+      where.date = {
+        ...(start ? { gte: start } : {}),
+        ...(end ? { lte: end } : {}),
       };
     }
+    if (search) {
+      where.OR = [
+        { description: { contains: search, mode: "insensitive" } },
+        {
+          category: {
+            is: { name: { contains: search, mode: "insensitive" } },
+          },
+        },
+      ];
+    }
 
-    // 5. Consultar con paginación
     const skip = (page - 1) * limit;
 
     const [items, total] = await Promise.all([
@@ -86,24 +108,36 @@ export async function GET(req: NextRequest) {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ date: "desc" }, { createdAt: "desc" }],
         include: { category: true },
       }),
       prisma.transaction.count({ where }),
     ]);
-    // 6. Serializar Decimal -> number
     const serializedItems = items.map((t) => ({
-      ...t,
-      amount: t.amount.toNumber(),
+      id: t.id,
+      amount: convertedNumber(t.amount, rate),
+      type: t.type,
+      description: t.description,
+      date: serializeDateOnly(t.date),
+      categoryId: t.categoryId,
+      createdAt: t.createdAt.toISOString(),
+      category: {
+        id: t.category.id,
+        name: t.category.name,
+        type: t.category.type,
+        icon: t.category.icon,
+        color: t.category.color,
+      },
     }));
 
     return NextResponse.json({
       items: serializedItems,
+      currency: user.currency,
       total,
       page,
-      pages: Math.ceil(total / limit),
+      pages: Math.max(1, Math.ceil(total / limit)),
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { message: "Error interno del servidor" },
       { status: 500 },
@@ -132,6 +166,9 @@ export async function POST(req: NextRequest) {
 
     // 3. Leer y validar body
     const body = await req.json();
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ message: "Cuerpo inválido" }, { status: 400 });
+    }
     const { amount, type, description, date, category_id } = body;
 
     if (amount === undefined || amount === null) {
@@ -141,38 +178,53 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let parsedAmount = undefined;
-
-    try {
-      parsedAmount = Number(amount);
-      if (isNaN(parsedAmount) || parsedAmount <= 0) {
-        return NextResponse.json(
-          { message: "amount debe ser un número mayor a 0" },
-          { status: 400 },
-        );
-      }
-    } catch (error) {
+    const parsedAmount = parseTransactionAmount(amount);
+    if (parsedAmount === null) {
       return NextResponse.json(
-        { message: "amount debe ser un número" },
+        {
+          message:
+            "amount debe ser positivo, tener hasta dos decimales y no exceder el máximo permitido",
+        },
+        { status: 400 },
+      );
+    }
+    const { rate } = await getExchangeRate(user.currency);
+    const usdAmount = currencyToUsd(parsedAmount, rate);
+    if (
+      usdAmount.lessThanOrEqualTo(0) ||
+      usdAmount.greaterThan("99999999.99")
+    ) {
+      return NextResponse.json(
+        { message: "El monto convertido no cabe en el rango permitido" },
         { status: 400 },
       );
     }
 
-    if (!type || !Object.values(MovementType).includes(type)) {
+    if (
+      typeof type !== "string" ||
+      !Object.values(MovementType).includes(type as MovementType)
+    ) {
       return NextResponse.json(
         { message: "type debe ser INCOME o EXPENSE" },
         { status: 400 },
       );
     }
 
-    if (!date || isNaN(new Date(date).getTime())) {
+    if (typeof date !== "string" || !parseDateOnly(date)) {
       return NextResponse.json(
         { message: "date es requerido y debe ser una fecha válida" },
         { status: 400 },
       );
     }
 
-    if (!category_id) {
+    if (!isValidTransactionDescription(description)) {
+      return NextResponse.json(
+        { message: "description debe tener hasta 200 caracteres" },
+        { status: 400 },
+      );
+    }
+
+    if (typeof category_id !== "string" || !category_id) {
       return NextResponse.json(
         { message: "category_id es requerido" },
         { status: 400 },
@@ -206,10 +258,10 @@ export async function POST(req: NextRequest) {
     // 5. Crear transacción
     const transaction = await prisma.transaction.create({
       data: {
-        amount: parsedAmount,
-        type,
+        amount: usdAmount,
+        type: type as MovementType,
         description: description ?? null,
-        date: new Date(date),
+        date: parseDateOnly(date) as Date,
         userId: user.id,
         categoryId: category_id,
       },
@@ -219,10 +271,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         id: transaction.id,
-        amount: transaction.amount.toNumber(),
+        amount: convertedNumber(transaction.amount, rate),
+        currency: user.currency,
         type: transaction.type,
         description: transaction.description,
-        date: transaction.date,
+        date: serializeDateOnly(transaction.date),
         category_id: transaction.categoryId,
         created_at: transaction.createdAt,
       },
@@ -257,6 +310,7 @@ export async function PUT(req: NextRequest) {
         { status: 404 },
       );
     }
+    const { rate } = await getExchangeRate(user.currency);
 
     // 3. Obtener ID de la transacción
     const { searchParams } = new URL(req.url);
@@ -287,18 +341,32 @@ export async function PUT(req: NextRequest) {
 
     // 5. Leer body
     const body = await req.json();
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ message: "Cuerpo inválido" }, { status: 400 });
+    }
 
     const { amount, type, description, date, category_id } = body;
 
     // 6. Validar amount
-    let parsedAmount: number | undefined = undefined;
-
+    let parsedAmount: ReturnType<typeof currencyToUsd> | undefined;
     if (amount !== undefined && amount !== null) {
-      parsedAmount = Number(amount);
-
-      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      const validAmount = parseTransactionAmount(amount);
+      if (validAmount === null) {
         return NextResponse.json(
-          { message: "amount debe ser un número mayor a 0" },
+          {
+            message:
+              "amount debe ser positivo, tener hasta dos decimales y no exceder el máximo permitido",
+          },
+          { status: 400 },
+        );
+      }
+      parsedAmount = currencyToUsd(validAmount, rate);
+      if (
+        parsedAmount.lessThanOrEqualTo(0) ||
+        parsedAmount.greaterThan("99999999.99")
+      ) {
+        return NextResponse.json(
+          { message: "El monto convertido no cabe en el rango permitido" },
           { status: 400 },
         );
       }
@@ -307,7 +375,8 @@ export async function PUT(req: NextRequest) {
     // 7. Validar type
     if (
       type !== undefined &&
-      !Object.values(MovementType).includes(type as MovementType)
+      (typeof type !== "string" ||
+        !Object.values(MovementType).includes(type as MovementType))
     ) {
       return NextResponse.json(
         { message: "type debe ser INCOME o EXPENSE" },
@@ -319,13 +388,26 @@ export async function PUT(req: NextRequest) {
     const finalType =
       (type as MovementType | undefined) ?? existingTransaction.type;
 
+    if (!isValidTransactionDescription(description)) {
+      return NextResponse.json(
+        { message: "description debe tener hasta 200 caracteres" },
+        { status: 400 },
+      );
+    }
+
     // 8. Validar date
-    let parsedDate: Date | undefined = undefined;
+    let parsedDate: Date | undefined;
 
     if (date !== undefined && date !== null) {
-      parsedDate = new Date(date);
+      if (typeof date !== "string") {
+        return NextResponse.json(
+          { message: "date debe ser una fecha válida" },
+          { status: 400 },
+        );
+      }
+      parsedDate = parseDateOnly(date) ?? undefined;
 
-      if (isNaN(parsedDate.getTime())) {
+      if (!parsedDate) {
         return NextResponse.json(
           { message: "date debe ser una fecha válida" },
           { status: 400 },
@@ -334,6 +416,15 @@ export async function PUT(req: NextRequest) {
     }
 
     // 9. Validar categoría
+    if (
+      category_id !== undefined &&
+      (typeof category_id !== "string" || !category_id)
+    ) {
+      return NextResponse.json(
+        { message: "category_id debe ser un identificador válido" },
+        { status: 400 },
+      );
+    }
     const finalCategoryId = category_id ?? existingTransaction.categoryId;
 
     const category = await prisma.category.findFirst({
@@ -392,10 +483,11 @@ export async function PUT(req: NextRequest) {
     // 11. Responder
     return NextResponse.json({
       id: updatedTransaction.id,
-      amount: updatedTransaction.amount.toNumber(),
+      amount: convertedNumber(updatedTransaction.amount, rate),
+      currency: user.currency,
       type: updatedTransaction.type,
       description: updatedTransaction.description,
-      date: updatedTransaction.date,
+      date: serializeDateOnly(updatedTransaction.date),
       category_id: updatedTransaction.categoryId,
       created_at: updatedTransaction.createdAt,
     });
@@ -468,7 +560,7 @@ export async function DELETE(req: NextRequest) {
       message: "Transacción eliminada correctamente",
       id: transaction.id,
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { message: "Error interno del servidor" },
       { status: 500 },

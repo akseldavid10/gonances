@@ -1,9 +1,4 @@
-/**
- * Datos de demostración. El proyecto es solo frontend por ahora: estos
- * registros imitan la forma exacta que devolverá la API (`/transactions`,
- * `/categories`, `/analytics`) para poder cambiarlos por fetch más adelante
- * sin tocar las vistas.
- */
+/** Categorías de demostración y tipos/cálculos compartidos para la interfaz. */
 
 export type TxType = "INCOME" | "EXPENSE";
 
@@ -23,6 +18,7 @@ export type Transaction = {
   description: string;
   date: string; // yyyy-mm-dd
   categoryId: string;
+  category?: Pick<Category, "name" | "color" | "icon" | "type" | "isCustom">;
 };
 
 export const categories: Category[] = [
@@ -193,8 +189,8 @@ function iso(year: number, month: number, day: number): string {
 /* ── Agregados que hoy calcula el cliente y mañana devolverá /analytics ── */
 
 export function inMonth(tx: Transaction, year: number, month: number) {
-  const d = new Date(tx.date);
-  return d.getFullYear() === year && d.getMonth() === month;
+  const expected = `${year}-${String(month + 1).padStart(2, "0")}`;
+  return tx.date.slice(0, 7) === expected;
 }
 
 /**
@@ -256,10 +252,13 @@ export function expensesByCategory(
   return [...grouped.entries()]
     .map(([categoryId, amount]) => {
       const cat = categoryById(categoryId);
+      const txCategory = monthTx.find(
+        (transaction) => transaction.categoryId === categoryId,
+      )?.category;
       return {
         categoryId,
-        category: cat?.name ?? "Categoría",
-        color: cat?.color ?? "#6d7c72",
+        category: cat?.name ?? txCategory?.name ?? "Categoría",
+        color: cat?.color ?? txCategory?.color ?? "#6d7c72",
         amount,
         percentage: Math.round((amount / total) * 1000) / 10,
       };
@@ -269,8 +268,8 @@ export function expensesByCategory(
 
 export function expensesByCategory2(transactions: Transaction[]) {
   const today = new Date();
-  const month = today.getMonth();
-  const year = today.getFullYear();
+  const month = today.getUTCMonth();
+  const year = today.getUTCFullYear();
 
   const monthTx = transactions.filter(
     (t) => t.type === "EXPENSE" && inMonth(t, year, month),
@@ -283,10 +282,13 @@ export function expensesByCategory2(transactions: Transaction[]) {
   return [...grouped.entries()]
     .map(([categoryId, amount]) => {
       const cat = categoryById(categoryId);
+      const txCategory = monthTx.find(
+        (transaction) => transaction.categoryId === categoryId,
+      )?.category;
       return {
         categoryId,
-        category: cat?.name ?? "Categoría",
-        color: cat?.color ?? "#6d7c72",
+        category: cat?.name ?? txCategory?.name ?? "Categoría",
+        color: cat?.color ?? txCategory?.color ?? "#6d7c72",
         amount,
         percentage: Math.round((amount / total) * 1000) / 10,
       };
@@ -322,9 +324,11 @@ export function monthlyTrends(
     "dic",
   ];
   for (let back = months - 1; back >= 0; back--) {
-    const d = new Date(today.getFullYear(), today.getMonth() - back, 1);
-    const year = d.getFullYear();
-    const month = d.getMonth();
+    const d = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - back, 1),
+    );
+    const year = d.getUTCFullYear();
+    const month = d.getUTCMonth();
     const monthTx = transactions.filter((t) => inMonth(t, year, month));
     out.push({
       key: `${year}-${month}`,
@@ -344,7 +348,7 @@ export function monthlyTrends(
 
 export function currentPeriod() {
   const d = new Date();
-  return { year: d.getFullYear(), month: d.getMonth() };
+  return { year: d.getUTCFullYear(), month: d.getUTCMonth() };
 }
 
 export function categoryIconFor(id: string) {

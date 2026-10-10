@@ -1,11 +1,29 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { CategoriesManager } from "@/components/dashboard/categories-manager";
 import { PageHeader } from "@/components/ui/panel";
-import { categories } from "@/lib/data";
+import { authenticatedUserId } from "@/lib/api-auth";
+import type { Category } from "@/lib/data";
+import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Categorías" };
 
-export default function CategoriesPage() {
+export default async function CategoriesPage() {
+  const userId = await authenticatedUserId();
+  if (!userId) redirect("/login");
+  const records = await prisma.category.findMany({
+    where: { OR: [{ userId: null }, { userId }] },
+    orderBy: [{ userId: "asc" }, { name: "asc" }],
+  });
+  const categories: Category[] = records.map((category) => ({
+    id: category.id,
+    name: category.name,
+    type: category.type,
+    icon: category.icon ?? "Wallet",
+    color: category.color,
+    isCustom: category.userId !== null,
+  }));
+
   return (
     <>
       <PageHeader
