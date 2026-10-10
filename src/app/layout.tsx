@@ -4,6 +4,7 @@ import {
   ThemeProvider,
   themeBootstrapScript,
 } from "@/components/theme/theme-provider";
+import { timeZoneCookieScript } from "@/lib/user-today";
 import "./globals.css";
 
 const bodoni = Bodoni_Moda({
@@ -40,6 +41,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         {/* biome-ignore lint/security/noDangerouslySetInnerHtml: script propio, sin datos del usuario, que debe correr antes del primer pintado */}
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: script propio, sin datos del usuario, que guarda la zona horaria del navegador */}
+        <script dangerouslySetInnerHTML={{ __html: timeZoneCookieScript }} />
       </head>
       <body className="min-h-full flex flex-col">
         <ThemeProvider>{children}</ThemeProvider>

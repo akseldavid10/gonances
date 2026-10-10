@@ -8,11 +8,12 @@ import { PageHeader, Panel } from "@/components/ui/panel";
 import { categoryById } from "@/lib/data";
 import { fetchDashboardData } from "@/lib/fetchTransactions";
 import { money, monthLabel, shortDate, signedMoney } from "@/lib/format";
+import { userToday } from "@/lib/user-today";
 
 export const metadata: Metadata = { title: "Panel" };
 
 export default async function DashboardPage() {
-  const referenceDate = new Date();
+  const referenceDate = await userToday();
   const year = referenceDate.getUTCFullYear();
   const month = referenceDate.getUTCMonth();
   const { summary, breakdown, trends, recent, monthCount, currency } =

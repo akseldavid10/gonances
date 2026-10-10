@@ -25,3 +25,25 @@ export function serializeDateOnly(value: Date): string {
 export function dateOnlyFromLocalParts(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
+
+/**
+ * El día de calendario que ve alguien en `timeZone`, como medianoche UTC. Así
+ * el resto del código puede seguir leyendo año, mes y día con getUTC*. Sin
+ * zona, o con una que el runtime no conoce, se queda en el día UTC.
+ */
+export function calendarDateIn(instant: Date, timeZone?: string | null): Date {
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timeZone || "UTC",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+    }).formatToParts(instant);
+  } catch {
+    return calendarDateIn(instant, "UTC");
+  }
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((p) => p.type === type)?.value);
+  return new Date(Date.UTC(part("year"), part("month") - 1, part("day")));
+}

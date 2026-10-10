@@ -10,12 +10,13 @@ import { PageHeader, Panel } from "@/components/ui/panel";
 import { getMonthlyAnalytics } from "@/lib/analytics";
 import { authenticatedUserId } from "@/lib/api-auth";
 import { money, monthLabel } from "@/lib/format";
+import { userToday } from "@/lib/user-today";
 
 export const metadata: Metadata = { title: "Estadísticas" };
 
 export default async function AnalyticsPage() {
   await connection();
-  const now = new Date();
+  const now = await userToday();
   const year = now.getUTCFullYear();
   const month = now.getUTCMonth();
   const userId = await authenticatedUserId();

@@ -7,6 +7,7 @@ import { CategoryStamp } from "@/components/ui/category-icon";
 import { expensesByCategory, monthlyTrends } from "@/lib/data";
 import { getDynamicFalseTransactions } from "@/lib/falseData";
 import { monthLabel } from "@/lib/format";
+import { userToday } from "@/lib/user-today";
 
 const features = [
   {
@@ -69,7 +70,7 @@ const faqs = [
 
 export default async function LandingPage() {
   await connection();
-  const now = new Date();
+  const now = await userToday();
   const year = now.getUTCFullYear();
   const month = now.getUTCMonth();
   const transactions = getDynamicFalseTransactions(now);
