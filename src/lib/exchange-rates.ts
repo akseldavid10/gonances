@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
-import { CURRENCY_CODES, type CurrencyCode } from "@/lib/currencies";
+import type { CurrencyCode } from "@/lib/currencies";
+import { providerFailure, providerRates } from "@/lib/exchange-rate-provider";
 
 export {
   convertedNumber,
@@ -10,8 +11,7 @@ export {
 import { prisma } from "@/lib/prisma";
 
 const CACHE_ID = "usd";
-const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
-const RETRY_INTERVAL_MS = 60 * 1000;
+const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const PROVIDER_BASE_URL =
   process.env.EXCHANGE_RATE_API_URL ?? "https://v6.exchangerate-api.com/v6";
 
@@ -42,71 +42,49 @@ function parseRates(value: Prisma.JsonValue): Partial<RateMap> {
   return rates;
 }
 
-function providerRates(value: unknown): RateMap | null {
-  if (!value || typeof value !== "object") return null;
-  const payload = value as Record<string, unknown>;
-  if (payload.result !== "success" || payload.base_code !== "USD") return null;
-  if (!payload.rates || typeof payload.rates !== "object") return null;
-  const source = payload.rates as Record<string, unknown>;
-  const rates = { USD: "1" } as RateMap;
-  for (const code of ["EUR", "JPY", "GBP", "COP"] as const) {
-    const candidate = source[code];
-    if (
-      typeof candidate !== "number" ||
-      !Number.isFinite(candidate) ||
-      candidate <= 0
-    ) {
-      return null;
-    }
-    rates[code] = String(candidate);
-  }
-  return rates;
-}
-
-async function refreshRatesIfStale(force = false) {
+async function refreshRatesIfStale() {
   const now = new Date();
   const nextRefreshAt = new Date(now.getTime() + REFRESH_INTERVAL_MS);
   const claimed = await prisma.exchangeRateCache.updateMany({
     where: {
       id: CACHE_ID,
-      ...(force ? {} : { nextRefreshAt: { lte: now } }),
+      nextRefreshAt: { lte: now },
     },
     data: { nextRefreshAt },
   });
   if (claimed.count !== 1) return;
 
+  let rates: RateMap | null;
   try {
     const response = await fetch(providerUrl(), {
       headers: { Accept: "application/json" },
       cache: "no-store",
       signal: AbortSignal.timeout(8_000),
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const rates = providerRates(await response.json());
-    if (!rates) throw new Error("Respuesta de tasas inválida");
-    await prisma.exchangeRateCache.update({
-      where: { id: CACHE_ID },
-      data: { rates, fetchedAt: now, nextRefreshAt },
-    });
-  } catch (error) {
-    console.error("No se pudieron actualizar las tasas de cambio:", error);
-    await prisma.exchangeRateCache.update({
-      where: { id: CACHE_ID },
-      data: { nextRefreshAt: new Date(Date.now() + RETRY_INTERVAL_MS) },
-    });
+    const payload: unknown = await response.json();
+    rates = providerRates(payload);
+    if (!response.ok || !rates) {
+      console.warn(
+        `[Tasas] ${providerFailure(payload)} (HTTP ${response.status}). Se conserva la caché; próximo intento en 24 horas.`,
+      );
+      return;
+    }
+  } catch {
+    // Los errores de fetch pueden contener la URL con la llave privada.
+    console.warn(
+      "[Tasas] No se pudo consultar el proveedor. Revisa la configuración y la conexión. Se conserva la caché; próximo intento en 24 horas.",
+    );
+    return;
   }
+  await prisma.exchangeRateCache.update({
+    where: { id: CACHE_ID },
+    data: { rates, fetchedAt: now, nextRefreshAt },
+  });
 }
 
 export async function getExchangeRates() {
-  let cache = await prisma.exchangeRateCache.findUnique({
-    where: { id: CACHE_ID },
-    select: { rates: true, fetchedAt: true },
-  });
-  if (!cache) throw new Error("La caché de tasas no está inicializada");
-  const cachedRates = parseRates(cache.rates);
-  const incomplete = !CURRENCY_CODES.every((code) => cachedRates[code]);
-  await refreshRatesIfStale(incomplete);
-  cache = await prisma.exchangeRateCache.findUnique({
+  await refreshRatesIfStale();
+  const cache = await prisma.exchangeRateCache.findUnique({
     where: { id: CACHE_ID },
     select: { rates: true, fetchedAt: true },
   });

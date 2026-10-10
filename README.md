@@ -69,7 +69,7 @@ Compose ofrece PostgreSQL en el puerto `5432` y Gonances en `http://localhost:30
 | `GOOGLE_CLIENT_SECRET` | Para Google OAuth | Secreto OAuth de Google |
 | `EXCHANGE_RATE_API_URL` | No | URL base de ExchangeRate-API; por defecto `https://v6.exchangerate-api.com/v6` |
 | `EXCHANGE_RATE_API_KEY` | Sí | Llave privada de ExchangeRate-API |
-| `CRON_SECRET` | Para cron en Vercel | Protege la actualización horaria de tasas |
+| `CRON_SECRET` | Para cron en Vercel | Protege la actualización diaria de tasas |
 | `CLOUDINARY_CLOUD_NAME` | Para subir avatar | Cloudinary cloud name |
 | `CLOUDINARY_API_KEY` | Para subir avatar | Clave pública Cloudinary |
 | `CLOUDINARY_API_SECRET` | Para subir avatar | Secreto usado para firmar subidas |
@@ -105,6 +105,8 @@ pnpm test
 El MVP no incluye conexión bancaria, presupuestos/alertas, exportación CSV/PDF ni aplicaciones nativas. La web es responsive. Los gráficos de la landing usan datos ficticios en USD; cada usuario puede ver y registrar su libro en USD, EUR, JPY, GBP o COP.
 
 Las tasas se solicitan a ExchangeRate-API con base USD. Guarda únicamente la llave en `EXCHANGE_RATE_API_KEY`; la aplicación construye la ruta `/API_KEY/latest/USD`. `CRON_SECRET` protege únicamente el endpoint interno del cron y es independiente de la llave del proveedor.
+
+La caché limita las consultas externas a un intento cada 24 horas, compartido entre todos los usuarios. El cron se ejecuta diariamente a la 01:00 UTC; las peticiones de la aplicación también pueden renovar la caché cuando vence. Si el proveedor falla, se conservan las últimas tasas válidas y se espera al siguiente intervalo. Son tasas de actualización diaria, no cotizaciones en tiempo real.
 
 El despliegue en Vercel/Neon requiere configurar variables en el proveedor y registrar el URI OAuth correspondiente. Este repositorio no contiene credenciales ni confirma que un servicio cloud ya esté desplegado.
 

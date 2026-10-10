@@ -9,7 +9,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "lint": "biome check",
     "format": "biome format --write",
-    "test": "tsx --test src/lib/falseData.test.ts src/lib/transaction-validation.test.ts src/lib/password-policy.test.ts src/lib/date-only.test.ts src/lib/fetchWithAuth.test.ts src/lib/currency-conversion.test.ts",
+    "test": "tsx --test src/lib/falseData.test.ts src/lib/transaction-validation.test.ts src/lib/password-policy.test.ts src/lib/date-only.test.ts src/lib/fetchWithAuth.test.ts src/lib/currency-conversion.test.ts src/lib/exchange-rate-provider.test.ts",
     "benchmark:api": "node scripts/benchmark-api.mjs",
     "benchmark:web": "lhci autorun",
     "postinstall": "prisma generate"
