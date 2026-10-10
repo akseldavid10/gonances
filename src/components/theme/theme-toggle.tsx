@@ -26,7 +26,7 @@ export function ThemeToggle() {
   return (
     <button
       type="button"
-      aria-label="Modo oscuro"
+      aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
       aria-pressed={mounted ? isDark : undefined}
       onClick={() => setPreference(isDark ? "light" : "dark")}
       className="flex size-8 items-center justify-center rounded text-ink-soft transition-colors hover:bg-band/70 hover:text-ink"

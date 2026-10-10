@@ -10,6 +10,7 @@ export function Modal({
   description,
   children,
   width = "md",
+  closeDisabled = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -17,23 +18,52 @@ export function Modal({
   description?: string;
   children: ReactNode;
   width?: "sm" | "md";
+  closeDisabled?: boolean;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const descriptionId = useId();
 
   // Guardamos la última versión de onClose sin que dispare el efecto de abajo.
   const onCloseRef = useRef(onClose);
+  const closeDisabledRef = useRef(closeDisabled);
   useEffect(() => {
     onCloseRef.current = onClose;
+    closeDisabledRef.current = closeDisabled;
   });
 
   useEffect(() => {
     if (!open) return;
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCloseRef.current();
+      if (e.key === "Escape" && !closeDisabledRef.current) {
+        onCloseRef.current();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const focusable = panel.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+      );
+      if (!focusable?.length) {
+        e.preventDefault();
+        panel.current?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const focusIsInside = panel.current?.contains(document.activeElement);
+      if (!focusIsInside) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      } else if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
-    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
 
     const previous = document.activeElement as HTMLElement | null;
     const overflow = document.body.style.overflow;
@@ -47,12 +77,10 @@ export function Modal({
       ?.focus();
 
     return () => {
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey, true);
       document.body.style.overflow = overflow;
       previous?.focus();
     };
-    // Solo abrir/cerrar dispara esto, no cada render con una nueva referencia de onClose.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: onClose se lee via ref
   }, [open]);
 
   if (!open) return null;
@@ -62,7 +90,10 @@ export function Modal({
       <button
         type="button"
         aria-label="Cerrar"
-        onClick={onClose}
+        disabled={closeDisabled}
+        onClick={() => {
+          if (!closeDisabled) onClose();
+        }}
         className="absolute inset-0 bg-scrim/45"
       />
       <div
@@ -70,6 +101,8 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
+        tabIndex={-1}
         className={`relative w-full ${
           width === "sm" ? "sm:max-w-105" : "sm:max-w-140"
         } max-h-[92dvh] overflow-y-auto rounded-t-lg border border-rule bg-sheet sm:rounded-lg`}
@@ -81,12 +114,17 @@ export function Modal({
               {title}
             </h2>
             {description ? (
-              <p className="mt-1 text-[13px] text-ink-faint">{description}</p>
+              <p id={descriptionId} className="mt-1 text-[13px] text-ink-faint">
+                {description}
+              </p>
             ) : null}
           </div>
           <button
             type="button"
-            onClick={onClose}
+            disabled={closeDisabled}
+            onClick={() => {
+              if (!closeDisabled) onClose();
+            }}
             aria-label="Cerrar"
             className="-mr-1 rounded p-1.5 text-ink-faint hover:bg-band hover:text-ink"
           >
