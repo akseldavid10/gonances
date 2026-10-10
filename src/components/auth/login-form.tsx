@@ -1,15 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { SubmitEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 
-export function LoginForm() {
+export function LoginForm({ initialError }: { initialError?: string }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError ?? null);
 
   async function onSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -63,25 +62,8 @@ export function LoginForm() {
           placeholder="••••••••"
         />
       </Field>
-      <div className="flex items-center justify-between gap-4">
-        <label className="flex items-center gap-2 text-[14px] text-ink-soft">
-          <input
-            type="checkbox"
-            name="remember"
-            className="size-4 accent-ink"
-            defaultChecked
-          />
-          No cerrar sesión
-        </label>
-        <Link
-          href="/forgot-password"
-          className="text-[14px] text-ink-soft underline-offset-4 hover:text-ink hover:underline"
-        >
-          ¿Olvidaste tu contraseña?
-        </Link>
-      </div>
       {error && (
-        <p className="text-[14px] text-red-600" role="alert">
+        <p className="text-[14px] text-expense" role="alert">
           {error}
         </p>
       )}

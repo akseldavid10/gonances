@@ -9,7 +9,16 @@ import { LoginForm } from "@/components/auth/login-form";
 
 export const metadata: Metadata = { title: "Iniciar sesión" };
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const error = (await searchParams).error;
+  const initialError =
+    error === "google-link-required"
+      ? "Ya existe una cuenta con ese correo. Entra con tu contraseña; Google no se vincula automáticamente por seguridad."
+      : undefined;
   return (
     <AuthShell
       title="Vuelve a tu libro"
@@ -28,7 +37,7 @@ export default function LoginPage() {
     >
       <GoogleButton label="Continuar con Google" />
       <OrDivider />
-      <LoginForm />
+      <LoginForm initialError={initialError} />
     </AuthShell>
   );
 }

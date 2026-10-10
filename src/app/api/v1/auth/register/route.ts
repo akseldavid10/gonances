@@ -1,21 +1,35 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { SignJWT } from "jose";
 import { cookies } from "next/headers";
-
-const ACCESS_TOKEN_SECRET = new TextEncoder().encode(
-  process.env.JWT_ACCESS_SECRET!,
-);
-const REFRESH_TOKEN_SECRET = new TextEncoder().encode(
-  process.env.JWT_REFRESH_SECRET!,
-);
+import { NextResponse } from "next/server";
+import { createSessionTokens } from "@/lib/auth-session";
+import { isStrongPassword } from "@/lib/password-policy";
+import { prisma } from "@/lib/prisma";
+import { allowRateLimitedRequest, requestIp } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const ip = requestIp(request);
+    if (
+      ip &&
+      !(await allowRateLimitedRequest("register:ip", ip, 10, 60 * 60))
+    ) {
+      return NextResponse.json(
+        {
+          error: "Demasiados intentos de registro. Vuelve a probar más tarde.",
+        },
+        { status: 429, headers: { "Retry-After": "3600" } },
+      );
+    }
 
-    const { email, password, username } = body;
+    const body: unknown = await request.json();
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
+    }
+
+    const { email, password, username, termsAccepted } = body as Record<
+      string,
+      unknown
+    >;
 
     // Validar campos requeridos
     if (!email || !password || !username) {
@@ -27,9 +41,34 @@ export async function POST(request: Request) {
       );
     }
 
+    if (
+      typeof email !== "string" ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ||
+      typeof username !== "string" ||
+      username.trim().length < 2 ||
+      username.trim().length > 80 ||
+      !isStrongPassword(password) ||
+      termsAccepted !== true
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Revisa el correo, el nombre, la contraseña y la aceptación de términos",
+        },
+        { status: 400 },
+      );
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedUsername = username.trim();
     const existingUser = await prisma.user.findFirst({
       where: {
-        OR: [{ email }, { username }],
+        OR: [
+          {
+            email: { equals: normalizedEmail, mode: "insensitive" },
+          },
+          { username: normalizedUsername },
+        ],
       },
     });
 
@@ -48,42 +87,25 @@ export async function POST(request: Request) {
     // Crear usuario
     const user = await prisma.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         hashedPassword: hashedPassword,
-        username,
+        username: normalizedUsername,
       },
       select: {
         id: true,
         email: true,
         username: true,
         createdAt: true,
+        tokenVersion: true,
+        currency: true,
       },
     });
 
-    const now = Math.floor(Date.now() / 1000);
-
-    const accesstoken = await new SignJWT({
-      sub: user.id,
-      email: user.email,
-    })
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt(now)
-      .setExpirationTime(now + 30 * 60) // 30 min
-      .sign(ACCESS_TOKEN_SECRET);
-
-    // Refresh Token - 7 días
-    const refreshtoken = await new SignJWT({
-      sub: user.id,
-      email: user.email,
-    })
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt(now)
-      .setExpirationTime(now + 7 * 24 * 60 * 60) // 7 días
-      .sign(REFRESH_TOKEN_SECRET);
+    const { accessToken, refreshToken } = await createSessionTokens(user);
 
     const cookieStore = await cookies();
 
-    cookieStore.set("accesstoken", accesstoken, {
+    cookieStore.set("accesstoken", accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -91,7 +113,7 @@ export async function POST(request: Request) {
       maxAge: 30 * 60, // 30 min en segundos
     });
 
-    cookieStore.set("refreshtoken", refreshtoken, {
+    cookieStore.set("refreshtoken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -105,10 +127,22 @@ export async function POST(request: Request) {
         email: user.email,
         username: user.username,
         created_at: user.createdAt,
+        currency: user.currency,
       },
       { status: 201 },
     );
   } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "El email o el nombre de usuario ya está en uso" },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       {
         error: "Error interno del servidor",

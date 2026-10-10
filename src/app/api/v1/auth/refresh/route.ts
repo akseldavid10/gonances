@@ -1,66 +1,61 @@
-// app/api/v1/auth/refresh/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { jwtVerify, SignJWT } from "jose";
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import {
+  ACCESS_TOKEN_SECONDS,
+  createAccessToken,
+  REFRESH_TOKEN_SECONDS,
+  rotateRefreshToken,
+} from "@/lib/auth-session";
 
-const ACCESS_SECRET = new TextEncoder().encode(process.env.JWT_ACCESS_SECRET);
-const REFRESH_SECRET = new TextEncoder().encode(process.env.JWT_REFRESH_SECRET);
+function clearSessionCookies(cookieStore: Awaited<ReturnType<typeof cookies>>) {
+  cookieStore.delete("accesstoken");
+  cookieStore.delete("refreshtoken");
+}
 
 export async function POST() {
+  const cookieStore = await cookies();
+  const refreshToken = cookieStore.get("refreshtoken")?.value;
+  if (!refreshToken) {
+    clearSessionCookies(cookieStore);
+    return NextResponse.json(
+      { message: "No hay sesión activa" },
+      { status: 401 },
+    );
+  }
+
   try {
-    const cookieStorage = await cookies();
-    const refreshTokenCookie = cookieStorage.get("refreshtoken");
-
-    if (!refreshTokenCookie?.value) {
-      return NextResponse.json(
-        { message: "No hay sesión activa" },
-        { status: 401 },
-      );
+    const rotated = await rotateRefreshToken(refreshToken);
+    if (!rotated) {
+      clearSessionCookies(cookieStore);
+      return NextResponse.json({ message: "Sesión inválida" }, { status: 401 });
     }
-
-    const refreshToken = refreshTokenCookie.value;
-
-    let payload: { sub: string; email: string };
-
-    try {
-      const { payload: verified } = await jwtVerify(
-        refreshToken,
-        REFRESH_SECRET,
-      );
-      payload = verified as { sub: string; email: string };
-    } catch {
-      // Firma inválida o refresh token expirado: sesión muerta, no hay
-      // vuelta atrás sin volver a hacer login.
-      return NextResponse.json(
-        { message: "Sesión expirada, inicia sesión de nuevo" },
-        { status: 401 },
-      );
-    }
-
-    // Reemitimos un access token nuevo con el mismo payload esencial.
-    const newAccessToken = await new SignJWT({
-      sub: payload.sub,
-      email: payload.email,
-    })
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt()
-      .setExpirationTime("30m")
-      .sign(ACCESS_SECRET);
-
-    cookieStorage.set("accesstoken", newAccessToken, {
+    const accesstoken = await createAccessToken(
+      rotated.user,
+      rotated.sessionId,
+    );
+    cookieStore.set("accesstoken", accesstoken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 30,
+      maxAge: ACCESS_TOKEN_SECONDS,
     });
-
+    cookieStore.set("refreshtoken", rotated.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: REFRESH_TOKEN_SECONDS,
+    });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("Error en refresh:", error);
+    console.error("No se pudo renovar la sesión:", error);
     return NextResponse.json(
-      { message: "Error interno del servidor" },
-      { status: 500 },
+      {
+        code: "SESSION_REFRESH_UNAVAILABLE",
+        message: "No se pudo renovar la sesión",
+      },
+      { status: 503 },
     );
   }
 }

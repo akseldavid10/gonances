@@ -3,7 +3,7 @@
 import { Check } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { SubmitEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 
@@ -13,6 +13,10 @@ const rules = [
   {
     label: "Al menos una mayúscula",
     test: (v: string) => /[A-ZÁÉÍÓÚÑ]/.test(v),
+  },
+  {
+    label: "Máximo 72 bytes",
+    test: (v: string) => new TextEncoder().encode(v).length <= 72,
   },
 ];
 
@@ -44,7 +48,7 @@ export function RegisterForm() {
       const res = await fetch("/api/v1/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, email, password }),
+        body: JSON.stringify({ username, email, password, termsAccepted }),
       });
 
       if (!res.ok) {
@@ -170,7 +174,7 @@ export function RegisterForm() {
       </label>
 
       {error && (
-        <p className="text-[14px] text-red-600" role="alert">
+        <p className="text-[14px] text-expense" role="alert">
           {error}
         </p>
       )}
