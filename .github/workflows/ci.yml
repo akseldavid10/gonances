@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: gonances
+          POSTGRES_USER: gonances
+          POSTGRES_PASSWORD: gonances-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gonances -d gonances"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://gonances:gonances-ci-password@localhost:5432/gonances?schema=public
+      DATABASE_ADAPTER: pg
+      JWT_ACCESS_SECRET: ci-access-secret-that-is-long-enough-for-build-only
+      JWT_REFRESH_SECRET: ci-refresh-secret-different-and-long-enough
+      NEXT_PUBLIC_BASE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.3.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate
+      - run: pnpm exec prisma migrate deploy
+      - run: pnpm db:seed
+      - run: pnpm test
+      - run: pnpm dlx --package=@redocly/cli redocly lint public/openapi.yaml
+      - run: pnpm build
+      - run: pnpm benchmark:web
