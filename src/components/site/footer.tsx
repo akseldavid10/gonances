@@ -7,7 +7,7 @@ const columns = [
     links: [
       { href: "/#caracteristicas", label: "Características" },
       { href: "/#como-funciona", label: "Cómo funciona" },
-      { href: "/dashboard", label: "Cuenta de ejemplo" },
+      { href: "/dashboard", label: "Ir al panel" },
     ],
   },
   {
@@ -15,7 +15,6 @@ const columns = [
     links: [
       { href: "/register", label: "Crear cuenta" },
       { href: "/login", label: "Iniciar sesión" },
-      { href: "/forgot-password", label: "Recuperar contraseña" },
     ],
   },
   {

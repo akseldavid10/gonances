@@ -63,15 +63,15 @@ const faqs = [
   },
   {
     q: "¿Puedo trabajar con más de una moneda?",
-    a: "Todavía no. Por ahora todo se registra en una sola moneda para que los totales nunca mientan.",
+    a: "Sí. Al entrar puedes ver y anotar tu libro en dólares, euros, yenes, libras esterlinas o pesos colombianos. La tasa se actualiza cada hora.",
   },
 ];
 
 export default async function LandingPage() {
   await connection();
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
   const transactions = getDynamicFalseTransactions(now);
   const breakdown = expensesByCategory(year, month, transactions);
   const trends = monthlyTrends(6, transactions, now);
@@ -95,8 +95,7 @@ export default async function LandingPage() {
                 Crear mi cuenta gratis
               </ButtonLink>
               <a
-                key={"#Asi-Se-Lee_Tu_Mes"}
-                href={"#Asi-Se-Lee_Tu_Mes"}
+                href="#asi-se-lee-tu-mes"
                 className="text-[14px] text-ink-soft transition-colors hover:text-ink"
               >
                 {"Ver panel de ejemplo"}
@@ -168,8 +167,8 @@ export default async function LandingPage() {
 
       {/* ── Demostración con datos de una cuenta de ejemplo ───────────── */}
       <section
-        className="mx-auto max-w-290 border-t border-rule px-5 py-16 sm:px-8 sm:py-20"
-        id="Asi-Se-Lee_Tu_Mes"
+        className="mx-auto max-w-290 scroll-mt-20 border-t border-rule px-5 py-16 sm:px-8 sm:py-20"
+        id="asi-se-lee-tu-mes"
       >
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>

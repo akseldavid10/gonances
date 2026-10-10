@@ -11,7 +11,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage
       title="Política de privacidad"
-      updated="30 de agosto de 2026"
+      updated="28 de septiembre de 2026"
       intro="Gonances guarda lo mínimo para que tu libro funcione: quién eres y qué anotaste. Nada más, y nada se vende."
       sections={[
         {
@@ -22,9 +22,10 @@ export default function PrivacyPage() {
                 <strong className="font-semibold text-ink">
                   De tu cuenta:
                 </strong>{" "}
-                nombre, correo electrónico, foto de perfil si entras con Google
-                y la fecha en que te registraste. Si usas correo y contraseña,
-                guardamos la contraseña cifrada, nunca en texto plano.
+                nombre, correo electrónico y foto de perfil si la agregas o
+                entras con Google y la fecha en que te registraste. Si usas
+                correo y contraseña, guardamos un hash seguro de la contraseña,
+                nunca la contraseña en texto plano.
               </p>
               <p>
                 <strong className="font-semibold text-ink">De tu libro:</strong>{" "}
@@ -96,8 +97,8 @@ export default function PrivacyPage() {
               >
                 Ajustes
               </Link>
-              . Al eliminar la cuenta se borran también todos tus movimientos y
-              tus categorías personalizadas, sin copia de respaldo.
+              . Al eliminar la cuenta se borran todos tus movimientos y
+              categorías personalizadas, sin copia de respaldo.
             </p>
           ),
         },
@@ -105,8 +106,9 @@ export default function PrivacyPage() {
           heading: "Cookies",
           body: (
             <p>
-              Usamos una sola cookie técnica para mantener tu sesión abierta. No
-              hay cookies de publicidad ni rastreadores de terceros.
+              Usamos dos cookies técnicas HttpOnly para mantener tu sesión
+              abierta: una de acceso y otra de renovación. No hay cookies de
+              publicidad ni rastreadores de terceros.
             </p>
           ),
         },

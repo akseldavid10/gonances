@@ -11,7 +11,7 @@ export default function TermsPage() {
   return (
     <LegalPage
       title="Términos y condiciones"
-      updated="30 de agosto de 2026"
+      updated="28 de septiembre de 2026"
       intro="Estas son las reglas de uso de Gonances. Están escritas en lenguaje corriente a propósito: si algo no se entiende, escríbenos y lo aclaramos."
       sections={[
         {
@@ -92,9 +92,9 @@ export default function TermsPage() {
           heading: "Cambios en estos términos",
           body: (
             <p>
-              Si cambiamos algo importante, lo avisamos por correo o dentro de
-              la aplicación antes de que entre en vigor. Seguir usando Gonances
-              después de ese aviso significa que aceptas la versión nueva.
+              La versión vigente y su fecha de actualización se publican en esta
+              página. Revísala periódicamente; al continuar usando Gonances
+              aceptas los términos vigentes.
             </p>
           ),
         },

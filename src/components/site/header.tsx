@@ -3,9 +3,9 @@ import { ButtonLink } from "@/components/ui/button";
 import { Logo } from "@/components/ui/logo";
 
 const links = [
-  { href: "#caracteristicas", label: "Características" },
-  { href: "#como-funciona", label: "Cómo funciona" },
-  { href: "#preguntas", label: "Preguntas frecuentes" },
+  { href: "/#caracteristicas", label: "Características" },
+  { href: "/#como-funciona", label: "Cómo funciona" },
+  { href: "/#preguntas", label: "Preguntas frecuentes" },
 ];
 
 export function SiteHeader() {
