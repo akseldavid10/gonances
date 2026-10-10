@@ -1,7 +1,7 @@
 // app/api/v1/users/me/auth-method/route.ts
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import getInfoToken from "@/lib/getInfoToken";
+import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {

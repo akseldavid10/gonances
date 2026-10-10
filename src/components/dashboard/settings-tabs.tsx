@@ -1,7 +1,15 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
-import { type SubmitEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  type ChangeEvent,
+  type SubmitEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { useCurrentUser } from "@/components/provider/user-provider";
 import {
   type ThemePreference,
   useTheme,
@@ -11,10 +19,10 @@ import { Field, Input } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { Panel } from "@/components/ui/panel";
 import { useToast } from "@/components/ui/toast";
-import { useCurrentUser } from "@/components/provider/user-provider";
-import { longDate } from "@/lib/format";
-import { useRouter } from "next/navigation";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { longDate } from "@/lib/format";
+import { googleDeleteAccount } from "@/lib/login";
+import { isStrongPassword } from "@/lib/password-policy";
 
 const tabs = [
   { id: "perfil", label: "Perfil" },
@@ -33,7 +41,8 @@ export function SettingsTabs() {
       <div
         role="tablist"
         aria-label="Ajustes de la cuenta"
-        className="mb-5 flex gap-1 border-b border-rule"
+        aria-orientation="horizontal"
+        className="mb-5 flex gap-1 overflow-x-auto border-b border-rule"
       >
         {tabs.map((t) => {
           const active = tab === t.id;
@@ -44,8 +53,24 @@ export function SettingsTabs() {
               role="tab"
               id={`tab-${t.id}`}
               aria-selected={active}
+              tabIndex={active ? 0 : -1}
               aria-controls={`panel-${t.id}`}
               onClick={() => setTab(t.id)}
+              onKeyDown={(event) => {
+                const current = tabs.findIndex((item) => item.id === t.id);
+                let next = current;
+                if (event.key === "ArrowRight")
+                  next = (current + 1) % tabs.length;
+                else if (event.key === "ArrowLeft") {
+                  next = (current - 1 + tabs.length) % tabs.length;
+                } else if (event.key === "Home") next = 0;
+                else if (event.key === "End") next = tabs.length - 1;
+                else return;
+                event.preventDefault();
+                const nextTab = tabs[next];
+                setTab(nextTab.id);
+                document.getElementById(`tab-${nextTab.id}`)?.focus();
+              }}
               className={`-mb-px border-b-2 px-3 py-2.5 text-[14px] transition-colors ${
                 active
                   ? "border-ink font-medium text-ink"
@@ -68,20 +93,89 @@ export function SettingsTabs() {
 
 function ProfilePanel() {
   const toast = useToast();
+  const { currentUser, loading, setCurrentUser } = useCurrentUser();
+  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl ?? "");
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
-  function onSubmit(e: SubmitEvent<HTMLFormElement>) {
+  async function onSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
-    toast("Perfil actualizado");
+    if (!currentUser || saving) return;
+    const formData = new FormData(e.currentTarget);
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetchWithAuth("/api/v1/users/me", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: String(formData.get("username") ?? ""),
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.user) {
+        setError(data?.error ?? "No se pudo actualizar el perfil");
+        return;
+      }
+      setCurrentUser(data.user);
+      toast("Perfil actualizado");
+      router.refresh();
+    } catch {
+      setError("No se pudo conectar con el servidor");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  const { currentUser, loading } = useCurrentUser();
+  async function uploadAvatar(event: ChangeEvent<HTMLInputElement>) {
+    if (!currentUser) return;
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (
+      !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
+      file.size > 2 * 1024 * 1024
+    ) {
+      setError("Elige una imagen JPG, PNG o WebP de hasta 2 MB");
+      event.target.value = "";
+      return;
+    }
+    setUploading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      const uploaded = await fetchWithAuth("/api/v1/uploads/avatar", {
+        method: "POST",
+        body: formData,
+      });
+      const result = await uploaded.json().catch(() => null);
+      if (!uploaded.ok || typeof result?.secure_url !== "string") {
+        throw new Error(result?.error ?? "No se pudo cargar la foto");
+      }
+      setAvatarUrl(result.secure_url);
+      setCurrentUser({ ...currentUser, avatarUrl: result.secure_url });
+      router.refresh();
+    } catch (uploadError) {
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "No se pudo cargar la foto",
+      );
+    } finally {
+      setUploading(false);
+      event.target.value = "";
+    }
+  }
 
   if (loading) {
     return <div>Cargando...</div>;
   }
 
   if (!currentUser) {
-    return <div>No autenticado ProfilePanel onSubmit</div>;
+    return <div>No se pudo cargar tu perfil. Vuelve a iniciar sesión.</div>;
   }
 
   return (
@@ -89,15 +183,37 @@ function ProfilePanel() {
       <Panel title="Tu perfil">
         <form onSubmit={onSubmit} className="grid max-w-110 gap-4">
           <div className="flex items-center gap-4">
-            <span className="flex size-14 items-center justify-center rounded-full border border-rule bg-band text-[17px] font-semibold text-ink">
-              {currentUser.initials}
-            </span>
+            {avatarUrl ? (
+              <span
+                aria-hidden="true"
+                className="size-14 rounded-full bg-cover bg-center"
+                style={{ backgroundImage: `url("${avatarUrl}")` }}
+              />
+            ) : (
+              <span className="flex size-14 items-center justify-center rounded-full border border-rule bg-band text-[17px] font-semibold text-ink">
+                {currentUser.initials}
+              </span>
+            )}
             <div>
-              <Button variant="outline" size="sm">
-                Cambiar foto
+              <input
+                ref={fileInput}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={uploadAvatar}
+                aria-label="Seleccionar foto de perfil"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={uploading}
+                onClick={() => fileInput.current?.click()}
+              >
+                {uploading ? "Subiendo…" : "Cambiar foto"}
               </Button>
               <p className="mt-1.5 text-[12px] text-ink-faint">
-                JPG o PNG, hasta 2 MB.
+                JPG, PNG o WebP, hasta 2 MB.
               </p>
             </div>
           </div>
@@ -105,6 +221,7 @@ function ProfilePanel() {
           <Field label="Nombre completo" htmlFor="full-name">
             <Input
               id="full-name"
+              name="username"
               defaultValue={currentUser.username}
               required
             />
@@ -128,8 +245,15 @@ function ProfilePanel() {
             Tu libro está abierto desde el {longDate(currentUser.memberSince)}.
           </p>
 
+          {error ? (
+            <p role="alert" className="text-sm text-expense">
+              {error}
+            </p>
+          ) : null}
           <div className="mt-1">
-            <Button type="submit">Guardar cambios</Button>
+            <Button type="submit" disabled={saving || uploading}>
+              {saving ? "Guardando…" : "Guardar cambios"}
+            </Button>
           </div>
         </form>
       </Panel>
@@ -138,22 +262,64 @@ function ProfilePanel() {
 }
 
 function SecurityPanel() {
-  const toast = useToast();
   const { currentUser, loading } = useCurrentUser();
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [changed, setChanged] = useState(false);
 
   if (loading) {
     return <div>Cargando...</div>;
   }
 
   if (!currentUser) {
-    return <div>No autenticado SecurityPanel</div>;
+    return <div>No se pudo cargar la seguridad de tu cuenta.</div>;
   }
 
   const isGoogle = currentUser.authMethod === "google";
 
-  function onSubmit(e: SubmitEvent<HTMLFormElement>) {
+  if (changed) {
+    return (
+      <output className="block py-8 text-ink">
+        Contraseña actualizada. Cerramos las otras sesiones; inicia sesión de
+        nuevo.
+      </output>
+    );
+  }
+
+  async function onSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
-    toast("Contraseña modificada");
+    const formData = new FormData(e.currentTarget);
+    const newPassword = String(formData.get("new-password") ?? "");
+    if (!isStrongPassword(newPassword)) {
+      setError(
+        "Usa al menos 8 caracteres, una mayúscula y un número; máximo 72 bytes.",
+      );
+      return;
+    }
+    setPending(true);
+    setError(null);
+    try {
+      const response = await fetchWithAuth("/api/v1/users/me/password", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: formData.get("current-password"),
+          newPassword,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        setError(data?.error ?? "No se pudo cambiar la contraseña");
+        return;
+      }
+      setChanged(true);
+      window.setTimeout(() => router.replace("/login"), 1200);
+    } catch {
+      setError("No se pudo conectar con el servidor");
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -175,6 +341,7 @@ function SecurityPanel() {
             <Field label="Contraseña actual" htmlFor="current-password">
               <Input
                 id="current-password"
+                name="current-password"
                 type="password"
                 autoComplete="current-password"
                 required
@@ -183,17 +350,26 @@ function SecurityPanel() {
             <Field
               label="Contraseña nueva"
               htmlFor="new-password"
-              hint="Ocho caracteres o más."
+              hint="Mínimo 8 caracteres, una mayúscula y un número; máximo 72 bytes."
             >
               <Input
                 id="new-password"
+                name="new-password"
                 type="password"
                 autoComplete="new-password"
+                minLength={8}
                 required
               />
             </Field>
+            {error ? (
+              <p role="alert" className="text-sm text-expense">
+                {error}
+              </p>
+            ) : null}
             <div className="mt-1">
-              <Button type="submit">Cambiar contraseña</Button>
+              <Button type="submit" disabled={pending}>
+                {pending ? "Actualizando…" : "Cambiar contraseña"}
+              </Button>
             </div>
           </form>
         )}
@@ -289,7 +465,9 @@ function AppearancePanel() {
           </p>
 
           <div className="mt-1">
-            <Button type="submit">Guardar cambios</Button>
+            <Button type="submit" disabled={!unsaved}>
+              Guardar cambios
+            </Button>
           </div>
         </form>
       </Panel>
@@ -363,7 +541,7 @@ function DataPanel() {
         return;
       }
 
-      toast("Cuenta eliminada", "warn");
+      toast("Cuenta eliminada");
       closeModal();
       router.push("/");
     } catch {
@@ -389,6 +567,7 @@ function DataPanel() {
       <Modal
         open={open}
         onClose={closeModal}
+        closeDisabled={deleting}
         title="Esto borra tu libro entero"
         description="Se eliminan tu perfil, tus movimientos y tus categorías."
         width="sm"
@@ -429,23 +608,36 @@ function DataPanel() {
         </div>
 
         {error && (
-          <p className="mt-3 text-[14px] text-red-600" role="alert">
+          <p className="mt-3 text-[14px] text-expense" role="alert">
             {error}
           </p>
         )}
 
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button variant="outline" onClick={closeModal}>
+          <Button variant="outline" onClick={closeModal} disabled={deleting}>
             Conservar mi cuenta
           </Button>
-          <Button
-            variant="danger"
-            disabled={!ready || deleting || checkingAuthMethod}
-            onClick={onDelete}
-          >
-            <Trash2 size={16} />
-            {deleting ? "Eliminando…" : "Eliminar definitivamente"}
-          </Button>
+          {isLocal ? (
+            <Button
+              variant="danger"
+              disabled={!ready || deleting || checkingAuthMethod}
+              onClick={onDelete}
+            >
+              <Trash2 size={16} />
+              {deleting ? "Eliminando…" : "Eliminar definitivamente"}
+            </Button>
+          ) : (
+            <form action={googleDeleteAccount}>
+              <Button
+                type="submit"
+                variant="danger"
+                disabled={!ready || checkingAuthMethod}
+              >
+                <Trash2 size={16} />
+                Confirmar con Google y eliminar
+              </Button>
+            </form>
+          )}
         </div>
       </Modal>
     </div>
