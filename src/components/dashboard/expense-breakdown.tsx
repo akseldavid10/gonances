@@ -3,6 +3,7 @@
 import { ExpenseDonut, type SliceDatum } from "@/components/dashboard/charts";
 import { useTheme } from "@/components/theme/theme-provider";
 import { chartPalette } from "@/lib/chart-colors";
+import type { CurrencyCode } from "@/lib/currencies";
 import { money } from "@/lib/format";
 
 type Row = {
@@ -40,9 +41,11 @@ export function condense(
 export function ExpenseBreakdown({
   rows,
   height,
+  currency = "USD",
 }: {
   rows: Row[];
   height?: number;
+  currency?: CurrencyCode;
 }) {
   const { resolved } = useTheme();
   const slices = condense(rows, chartPalette(resolved).other);
@@ -58,7 +61,12 @@ export function ExpenseBreakdown({
 
   return (
     <div className="grid items-center gap-6 sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-      <ExpenseDonut data={slices} total={total} height={height} />
+      <ExpenseDonut
+        data={slices}
+        total={total}
+        height={height}
+        currency={currency}
+      />
       {/* Leyenda y tabla a la vez: nombre, monto y peso de cada categoría. */}
       <ul className="divide-y divide-rule-soft">
         {slices.map((s) => (
@@ -74,8 +82,8 @@ export function ExpenseBreakdown({
             <span className="num w-11 text-right text-[13px] text-ink-faint">
               {s.percentage}%
             </span>
-            <span className="num w-22 text-right text-[14px] text-ink">
-              {money(s.amount)}
+            <span className="num min-w-28 text-right text-[14px] text-ink">
+              {money(s.amount, currency)}
             </span>
           </li>
         ))}

@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { useTheme } from "@/components/theme/theme-provider";
 import { chartPalette } from "@/lib/chart-colors";
+import type { CurrencyCode } from "@/lib/currencies";
 import { money, moneyShort } from "@/lib/format";
 
 /**
@@ -30,7 +31,15 @@ function useChartPalette() {
 
 type TooltipRow = { name: string; value: number; color: string };
 
-function TooltipCard({ title, rows }: { title: string; rows: TooltipRow[] }) {
+function TooltipCard({
+  title,
+  rows,
+  currency,
+}: {
+  title: string;
+  rows: TooltipRow[];
+  currency: CurrencyCode;
+}) {
   return (
     <div className="rounded border border-rule bg-sheet px-3 py-2 text-[13px] shadow-none">
       <p className="mb-1 font-medium text-ink">{title}</p>
@@ -46,7 +55,9 @@ function TooltipCard({ title, rows }: { title: string; rows: TooltipRow[] }) {
               style={{ backgroundColor: r.color }}
             />
             <span className="text-ink-soft">{r.name}</span>
-            <span className="num ml-auto pl-3 text-ink">{money(r.value)}</span>
+            <span className="num ml-auto pl-3 text-ink">
+              {money(r.value, currency)}
+            </span>
           </li>
         ))}
       </ul>
@@ -67,10 +78,12 @@ export function ExpenseDonut({
   data,
   total,
   height = 240,
+  currency = "USD",
 }: {
   data: SliceDatum[];
   total: number;
   height?: number;
+  currency?: CurrencyCode;
 }) {
   const c = useChartPalette();
 
@@ -104,6 +117,7 @@ export function ExpenseDonut({
               return (
                 <TooltipCard
                   title={datum.category}
+                  currency={currency}
                   rows={[
                     {
                       name: `${datum.percentage}% del gasto`,
@@ -120,7 +134,7 @@ export function ExpenseDonut({
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-[12px] text-ink-faint">Gastado</span>
         <span className="engraved text-[26px] leading-tight text-ink">
-          {money(total)}
+          {money(total, currency)}
         </span>
       </div>
     </div>
@@ -139,9 +153,11 @@ export type TrendDatum = {
 export function IncomeExpenseBars({
   data,
   height = 260,
+  currency = "USD",
 }: {
   data: TrendDatum[];
   height?: number;
+  currency?: CurrencyCode;
 }) {
   const c = useChartPalette();
   const axisTick = { fill: c.axis, fontSize: 12 };
@@ -165,11 +181,11 @@ export function IncomeExpenseBars({
             dy={4}
           />
           <YAxis
-            width={62}
+            width={currency === "COP" || currency === "JPY" ? 86 : 68}
             tickLine={false}
             axisLine={false}
             tick={axisTick}
-            tickFormatter={(v: number) => moneyShort(v)}
+            tickFormatter={(v: number) => moneyShort(v, currency)}
           />
           <Tooltip
             cursor={{ fill: c.band, fillOpacity: 0.5 }}
@@ -179,6 +195,7 @@ export function IncomeExpenseBars({
               return (
                 <TooltipCard
                   title={String(label)}
+                  currency={currency}
                   rows={[
                     { name: "Ingresos", value: d.incomes, color: c.income },
                     { name: "Gastos", value: d.expenses, color: c.expense },
@@ -212,9 +229,11 @@ export function IncomeExpenseBars({
 export function ExpenseTrendArea({
   data,
   height = 260,
+  currency = "USD",
 }: {
   data: TrendDatum[];
   height?: number;
+  currency?: CurrencyCode;
 }) {
   const c = useChartPalette();
   const axisTick = { fill: c.axis, fontSize: 12 };
@@ -236,11 +255,11 @@ export function ExpenseTrendArea({
             dy={4}
           />
           <YAxis
-            width={62}
+            width={currency === "COP" || currency === "JPY" ? 86 : 68}
             tickLine={false}
             axisLine={false}
             tick={axisTick}
-            tickFormatter={(v: number) => moneyShort(v)}
+            tickFormatter={(v: number) => moneyShort(v, currency)}
           />
           <Tooltip
             cursor={{ stroke: c.rule, strokeWidth: 1 }}
@@ -250,6 +269,7 @@ export function ExpenseTrendArea({
               return (
                 <TooltipCard
                   title={String(label)}
+                  currency={currency}
                   rows={[
                     { name: "Gastos", value: d.expenses, color: c.expense },
                   ]}

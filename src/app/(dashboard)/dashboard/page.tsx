@@ -5,35 +5,18 @@ import { IncomeExpenseBars, SeriesLegend } from "@/components/dashboard/charts";
 import { ExpenseBreakdown } from "@/components/dashboard/expense-breakdown";
 import { CategoryStamp } from "@/components/ui/category-icon";
 import { PageHeader, Panel } from "@/components/ui/panel";
-import {
-  categoryById,
-  currentPeriod,
-  expensesByCategory,
-  inMonth,
-  monthlyTrends,
-  summary,
-  summaryUpToDay,
-} from "@/lib/data";
-import { getDynamicFalseTransactions } from "@/lib/falseData";
+import { categoryById } from "@/lib/data";
+import { fetchDashboardData } from "@/lib/fetchTransactions";
 import { money, monthLabel, shortDate, signedMoney } from "@/lib/format";
-import { Transaction } from "@/lib/data";
-import { fetchTransactions } from "@/lib/fetchTransactions";
 
 export const metadata: Metadata = { title: "Panel" };
 
 export default async function DashboardPage() {
-  const { year, month } = currentPeriod();
-
-  const data = await fetchTransactions();
-
-  const transactions: Transaction[] =
-    data && data.length > 0 ? data : getDynamicFalseTransactions();
-  const now = summary(year, month, transactions);
-  // Mismo tramo del mes anterior: comparar 4 días contra 30 no dice nada.
-  const breakdown = expensesByCategory(year, month, transactions);
-  const trends = monthlyTrends(6, transactions);
-  const recent = transactions.slice(0, 8);
-  const monthCount = transactions.filter((t) => inMonth(t, year, month)).length;
+  const referenceDate = new Date();
+  const year = referenceDate.getUTCFullYear();
+  const month = referenceDate.getUTCMonth();
+  const { summary, breakdown, trends, recent, monthCount, currency } =
+    await fetchDashboardData(referenceDate);
 
   return (
     <>
@@ -44,9 +27,25 @@ export default async function DashboardPage() {
 
       {/* Los tres totales viven en una sola hoja, separados por filete:
           son partes de la misma cuenta, no tres tarjetas sueltas. */}
-      <div className="grid divide-y divide-rule rounded-lg border border-rule bg-sheet sm:grid-cols-2 sm:divide-x sm:divide-y-0 ">
-        <Kpi label="Ingresos del mes" amount={now.incomes} tone="income" />
-        <Kpi label="Gastos del mes" amount={now.expenses} tone="expense" />
+      <div className="grid divide-y divide-rule rounded-lg border border-rule bg-sheet sm:grid-cols-3 sm:divide-x sm:divide-y-0 ">
+        <Kpi
+          label="Balance total"
+          amount={summary.balance}
+          tone="ink"
+          currency={currency}
+        />
+        <Kpi
+          label="Ingresos del mes"
+          amount={summary.incomes}
+          tone="income"
+          currency={currency}
+        />
+        <Kpi
+          label="Gastos del mes"
+          amount={summary.expenses}
+          tone="expense"
+          currency={currency}
+        />
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
@@ -58,7 +57,7 @@ export default async function DashboardPage() {
             </span>
           }
         >
-          <ExpenseBreakdown rows={breakdown} height={236} />
+          <ExpenseBreakdown rows={breakdown} height={236} currency={currency} />
         </Panel>
 
         <Panel
@@ -72,7 +71,7 @@ export default async function DashboardPage() {
             />
           }
         >
-          <IncomeExpenseBars data={trends} height={262} />
+          <IncomeExpenseBars data={trends} height={262} currency={currency} />
         </Panel>
       </div>
 
@@ -112,7 +111,7 @@ export default async function DashboardPage() {
             </thead>
             <tbody>
               {recent.map((t) => {
-                const cat = categoryById(t.categoryId);
+                const cat = categoryById(t.categoryId) ?? t.category;
                 return (
                   <tr
                     key={t.id}
@@ -143,7 +142,7 @@ export default async function DashboardPage() {
                         t.type === "INCOME" ? "text-income" : "text-expense"
                       }`}
                     >
-                      {signedMoney(t.amount, t.type)}
+                      {signedMoney(t.amount, t.type, currency)}
                     </td>
                   </tr>
                 );
@@ -160,10 +159,12 @@ function Kpi({
   label,
   amount,
   tone,
+  currency,
 }: {
   label: string;
   amount: number;
   tone: "ink" | "income" | "expense";
+  currency: import("@/lib/currencies").CurrencyCode;
 }) {
   const color =
     tone === "income"
@@ -177,17 +178,8 @@ function Kpi({
       <p
         className={`engraved mt-1.5 text-[clamp(1.9rem,3.6vw,2.5rem)] leading-none ${color}`}
       >
-        {money(amount)}
+        {money(amount, currency)}
       </p>
     </div>
   );
-}
-
-function delta(current: number, previous: number): string {
-  if (previous <= 0) return "Sin nada que comparar todavía";
-  const pct = Math.round(((current - previous) / previous) * 100);
-  if (pct === 0) return "Igual que a esta altura del mes pasado";
-  return pct > 0
-    ? `${pct}% más que a esta altura del mes pasado`
-    : `${Math.abs(pct)}% menos que a esta altura del mes pasado`;
 }

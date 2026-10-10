@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import {
   ExpenseTrendArea,
@@ -6,12 +7,8 @@ import {
   SeriesLegend,
 } from "@/components/dashboard/charts";
 import { PageHeader, Panel } from "@/components/ui/panel";
-import {
-  categoryById,
-  inMonth,
-  monthlyTrends,
-} from "@/lib/data";
-import { getDynamicFalseTransactions } from "@/lib/falseData";
+import { getMonthlyAnalytics } from "@/lib/analytics";
+import { authenticatedUserId } from "@/lib/api-auth";
 import { money, monthLabel } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Estadísticas" };
@@ -19,36 +16,21 @@ export const metadata: Metadata = { title: "Estadísticas" };
 export default async function AnalyticsPage() {
   await connection();
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const falseTransactions = getDynamicFalseTransactions(now);
-  const trends = monthlyTrends(6, falseTransactions, now);
-
-  // Gasto por categoría en los seis meses del período mostrado.
-  const since = new Date(year, month - 5, 1);
-  const window = falseTransactions.filter(
-    (t) => t.type === "EXPENSE" && new Date(t.date) >= since,
-  );
-  const byCategory = new Map<string, number>();
-  for (const t of window) {
-    byCategory.set(
-      t.categoryId,
-      (byCategory.get(t.categoryId) ?? 0) + t.amount,
-    );
-  }
-  const ranking = [...byCategory.entries()]
-    .map(([id, amount]) => {
-      const cat = categoryById(id);
-      return { cat, amount: cat ? amount : 0 };
-    })
-    .sort((a, b) => b.amount - a.amount);
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+  const userId = await authenticatedUserId();
+  if (!userId) redirect("/login");
+  const analytics = await getMonthlyAnalytics(userId, now);
+  const currency = analytics.currency;
+  const trends = analytics.monthlyTrends;
+  const ranking = analytics.expensesByCategory.map((row) => ({
+    cat: { id: row.categoryId, name: row.category, color: row.color },
+    amount: row.amount,
+  }));
   const top = ranking[0];
   const max = ranking[0]?.amount ?? 1;
-
-  const monthExpenses = falseTransactions
-    .filter((t) => t.type === "EXPENSE" && inMonth(t, year, month))
-    .reduce((s, t) => s + t.amount, 0);
-  const daysElapsed = new Date().getDate();
+  const monthExpenses = analytics.currentMonthExpenses;
+  const daysElapsed = now.getUTCDate();
   const dailyAverage = monthExpenses / Math.max(1, daysElapsed);
 
   // El mes en curso va a medias, así que no compite por "el más caro".
@@ -67,17 +49,17 @@ export default async function AnalyticsPage() {
           explicación después. */}
       <div className="grid divide-y divide-rule rounded-lg border border-rule bg-sheet sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         <Finding
-          amount={money(dailyAverage)}
+          amount={money(dailyAverage, currency)}
           text={`Es tu gasto promedio por día en ${monthLabel(year, month)}.`}
         />
         <Finding
-          amount={money(priciest?.expenses ?? 0)}
+          amount={money(priciest?.expenses ?? 0, currency)}
           text={`Fue el mes cerrado más caro, en ${
             priciest ? monthLabel(priciest.year, priciest.month) : "—"
           }.`}
         />
         <Finding
-          amount={money(saved)}
+          amount={money(saved, currency)}
           text="Es lo que te quedó después de restar todos los gastos a todos los ingresos."
           tone={saved >= 0 ? "income" : "expense"}
         />
@@ -90,7 +72,7 @@ export default async function AnalyticsPage() {
             <SeriesLegend items={[{ label: "Gastos", series: "expense" }]} />
           }
         >
-          <ExpenseTrendArea data={trends} height={268} />
+          <ExpenseTrendArea data={trends} height={268} currency={currency} />
         </Panel>
 
         <Panel
@@ -104,7 +86,7 @@ export default async function AnalyticsPage() {
             />
           }
         >
-          <IncomeExpenseBars data={trends} height={268} />
+          <IncomeExpenseBars data={trends} height={268} currency={currency} />
         </Panel>
       </div>
 
@@ -122,7 +104,8 @@ export default async function AnalyticsPage() {
               <strong className="font-semibold text-ink">
                 {top.cat?.name ?? "Categoría"}
               </strong>{" "}
-              se lleva la mayor parte: {money(top.amount)} en seis meses.
+              se lleva la mayor parte: {money(top.amount, currency)} en seis
+              meses.
             </p>
           ) : null}
 
@@ -134,7 +117,7 @@ export default async function AnalyticsPage() {
                     {r.cat?.name ?? "Categoría"}
                   </span>
                   <span className="num text-[14px] text-ink-soft">
-                    {money(r.amount)}
+                    {money(r.amount, currency)}
                   </span>
                 </div>
                 <div className="h-2.5 rounded-sm bg-band">
