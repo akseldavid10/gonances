@@ -34,7 +34,7 @@ export function NewTransactionModal({
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const currency = currentUser?.currency ?? "USD";
+  const currency = currentUser.currency;
   const initialAmount = editing
     ? currency === "JPY"
       ? String(Math.round(editing.amount))

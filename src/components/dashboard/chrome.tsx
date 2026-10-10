@@ -60,15 +60,7 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
     };
   }, [drawerOpen]);
 
-  const { currentUser, loading } = useCurrentUser();
-
-  if (loading) {
-    return <div>Cargando...</div>;
-  }
-
-  if (!currentUser) {
-    return <div>No se pudo cargar tu sesión. Vuelve a iniciar sesión.</div>;
-  }
+  const { currentUser } = useCurrentUser();
 
   function closeDrawer() {
     setDrawerOpen(false);
@@ -114,12 +106,13 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
                 title={currentUser.username}
               >
                 {currentUser.avatarUrl ? (
-                  <span
-                    aria-hidden="true"
-                    className="size-full rounded-full bg-cover bg-center"
-                    style={{
-                      backgroundImage: `url("${currentUser.avatarUrl}")`,
-                    }}
+                  // biome-ignore lint/performance/noImgElement: avatar de 36 px desde Cloudinary o Google; no necesita el optimizador
+                  <img
+                    src={currentUser.avatarUrl}
+                    alt=""
+                    width={36}
+                    height={36}
+                    className="size-full rounded-full object-cover"
                   />
                 ) : (
                   currentUser.initials

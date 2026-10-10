@@ -14,10 +14,11 @@ export type User = {
   avatarUrl?: string | null;
 };
 
+// El layout del panel valida la sesión y siempre entrega un usuario: si no
+// lo hay, redirige a /login antes de montar el proveedor.
 type UserContextType = {
-  currentUser: User | null;
-  loading: boolean;
-  setCurrentUser: React.Dispatch<React.SetStateAction<User | null>>;
+  currentUser: User;
+  setCurrentUser: React.Dispatch<React.SetStateAction<User>>;
 };
 
 const UserContext = createContext<UserContextType | null>(null);
@@ -29,17 +30,10 @@ export function UserProvider({
   children: ReactNode;
   initialUser: User;
 }) {
-  const [currentUser, setCurrentUser] = useState<User | null>(initialUser);
-  const loading = false;
+  const [currentUser, setCurrentUser] = useState<User>(initialUser);
 
   return (
-    <UserContext.Provider
-      value={{
-        currentUser,
-        loading,
-        setCurrentUser,
-      }}
-    >
+    <UserContext.Provider value={{ currentUser, setCurrentUser }}>
       {children}
     </UserContext.Provider>
   );

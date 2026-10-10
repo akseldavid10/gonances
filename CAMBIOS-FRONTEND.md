@@ -143,13 +143,22 @@ label:has(> input.sr-only:focus-visible) {
 
 Los cambios previos en `package.json`, `pnpm-lock.yaml` y `src/generated/prisma/` no son parte de esta revisión.
 
-## 4. Pendientes detectados (no aplicados)
+## 4. Segunda ronda: pendientes resueltos
 
-| Tema | Detalle | Propuesta |
+Todo lo que había quedado pendiente en la primera revisión ya está aplicado.
+
+| Tema | Qué se hizo | Archivos |
 | --- | --- | --- |
-| `pnpm lint` falla con 139 errores | Casi todos vienen de `src/generated/prisma` y de los finales de línea CRLF de Windows | Excluir `!src/generated` en `biome.json` y añadir `* text=auto eol=lf` en `.gitattributes` |
-| `tsc` se queja de `forgot-password` y `reset-password` | Son tipos antiguos que quedaron en `.next/types` | Se regeneran con `pnpm build`; no hace falta tocar código |
-| Estados de carga y error en `chrome.tsx` | `loading` siempre vale `false`, así que "Cargando..." nunca aparece. "No se pudo cargar tu sesión" no tiene estilo ni enlace para volver a entrar | Quitar la rama muerta y darle estilo al error, con enlace a `/login` |
-| Mes del panel en UTC | `dashboard/page.tsx` calcula el mes en el servidor con UTC, así que puede no coincidir con la fecha del usuario a fin de mes | Requiere guardar o enviar la zona horaria del usuario |
-| Nombre accesible de los colores | Al crear una categoría, el lector de pantalla anuncia "Tinta #c4611a" | Darle a cada color un nombre legible (por ejemplo, "Naranja") |
-| Avatar como `background-image` | La URL se inserta en `url("…")` dentro del estilo | Usar `<img alt="">` o `next/image` |
+| `pnpm lint` fallaba con 139 errores | Biome excluye `src/generated`; `.gitattributes` fija `* text=auto eol=lf` y la copia de trabajo se reescribió en LF. Se formateó `scripts/benchmark-api.mjs`, el único error real. Ahora `pnpm lint` pasa | `biome.json`, `.gitattributes`, `scripts/benchmark-api.mjs` |
+| `tsc` se quejaba de páginas borradas | Eran tipos viejos en `.next/types`; desaparecen al ejecutar `pnpm build` | — |
+| Estados muertos en el panel | `currentUser` pasa a ser `User` (nunca `null`): el layout servidor redirige a `/login` antes de montar el proveedor. Se eliminaron `loading` y las ramas "Cargando..." y "No se pudo cargar…" sin estilo, en `chrome.tsx` y en las dos pestañas de Ajustes. La subida de avatar usa una actualización funcional del estado | `user-provider.tsx`, `chrome.tsx`, `settings-tabs.tsx`, `currency-switcher.tsx`, `new-transaction-modal.tsx`, `transactions-browser.tsx` |
+| Mes calculado en UTC en el servidor | El navegador guarda su zona IANA en la cookie `tz` (script en el `<head>`). `userToday()` la lee y devuelve el día de calendario del usuario como medianoche UTC, que el resto del código ya sabe leer. Sin cookie, o con un valor inválido, se usa el día UTC, como antes. Se aplica al panel, a Estadísticas y a la portada | `src/lib/user-today.ts` (nuevo), `src/lib/date-only.ts` (`calendarDateIn`), `layout.tsx`, `dashboard/page.tsx`, `analytics/page.tsx`, `(public)/page.tsx` |
+| Colores anunciados como hex | Cada color de categoría tiene un nombre legible ("Naranja", "Turquesa"…) para el lector de pantalla | `categories-manager.tsx` |
+| Avatar como `background-image` | Se usa un `<img alt="">` con tamaño fijo en la cabecera y en Ajustes | `chrome.tsx`, `settings-tabs.tsx` |
+
+### Verificación de la segunda ronda
+
+- `pnpm lint`: sin errores (106 archivos).
+- `pnpm test`: 15/15, incluidas 2 pruebas nuevas de `calendarDateIn`: Bogotá a las 21:00 del 30 de septiembre sigue en septiembre, Tokio ya está en octubre, y una zona desconocida cae a UTC.
+- `pnpm build`: correcto.
+- Navegador: la cookie `tz=America%2FBogota` se escribe al cargar `/login` y la consola queda limpia. La portada responde 200 sin cookie, con una zona válida, con una zona inventada y con una cookie mal codificada.

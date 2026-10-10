@@ -23,18 +23,13 @@ type RatesResponse = {
 export function CurrencySwitcher({ onChanged }: { onChanged?: () => void }) {
   const router = useRouter();
   const toast = useToast();
-  const { currentUser, setCurrentUser } = useCurrentUser();
+  const { currentUser: user, setCurrentUser } = useCurrentUser();
   const [open, setOpen] = useState(false);
-  const [currency, setCurrency] = useState<CurrencyCode>(
-    currentUser?.currency ?? "USD",
-  );
+  const [currency, setCurrency] = useState<CurrencyCode>(user.currency);
   const [saving, setSaving] = useState(false);
   const [loadingRates, setLoadingRates] = useState(false);
   const [rates, setRates] = useState<RatesResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  if (!currentUser) return null;
-  const user = currentUser;
 
   async function openSelector() {
     setCurrency(user.currency);

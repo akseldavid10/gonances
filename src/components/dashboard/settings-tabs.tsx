@@ -93,8 +93,8 @@ export function SettingsTabs() {
 
 function ProfilePanel() {
   const toast = useToast();
-  const { currentUser, loading, setCurrentUser } = useCurrentUser();
-  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl ?? "");
+  const { currentUser, setCurrentUser } = useCurrentUser();
+  const [avatarUrl, setAvatarUrl] = useState(currentUser.avatarUrl ?? "");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +103,7 @@ function ProfilePanel() {
 
   async function onSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!currentUser || saving) return;
+    if (saving) return;
     const formData = new FormData(e.currentTarget);
     setSaving(true);
     setError(null);
@@ -131,7 +131,6 @@ function ProfilePanel() {
   }
 
   async function uploadAvatar(event: ChangeEvent<HTMLInputElement>) {
-    if (!currentUser) return;
     const file = event.target.files?.[0];
     if (!file) return;
     if (
@@ -156,7 +155,7 @@ function ProfilePanel() {
         throw new Error(result?.error ?? "No se pudo cargar la foto");
       }
       setAvatarUrl(result.secure_url);
-      setCurrentUser({ ...currentUser, avatarUrl: result.secure_url });
+      setCurrentUser((user) => ({ ...user, avatarUrl: result.secure_url }));
       router.refresh();
     } catch (uploadError) {
       setError(
@@ -170,24 +169,19 @@ function ProfilePanel() {
     }
   }
 
-  if (loading) {
-    return <div>Cargando...</div>;
-  }
-
-  if (!currentUser) {
-    return <div>No se pudo cargar tu perfil. Vuelve a iniciar sesión.</div>;
-  }
-
   return (
     <div role="tabpanel" id="panel-perfil" aria-labelledby="tab-perfil">
       <Panel title="Tu perfil">
         <form onSubmit={onSubmit} className="grid max-w-110 gap-4">
           <div className="flex items-center gap-4">
             {avatarUrl ? (
-              <span
-                aria-hidden="true"
-                className="size-14 rounded-full bg-cover bg-center"
-                style={{ backgroundImage: `url("${avatarUrl}")` }}
+              // biome-ignore lint/performance/noImgElement: avatar de 56 px desde Cloudinary o Google; no necesita el optimizador
+              <img
+                src={avatarUrl}
+                alt=""
+                width={56}
+                height={56}
+                className="size-14 rounded-full object-cover"
               />
             ) : (
               <span className="flex size-14 items-center justify-center rounded-full border border-rule bg-band text-[17px] font-semibold text-ink">
@@ -262,19 +256,11 @@ function ProfilePanel() {
 }
 
 function SecurityPanel() {
-  const { currentUser, loading } = useCurrentUser();
+  const { currentUser } = useCurrentUser();
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [changed, setChanged] = useState(false);
-
-  if (loading) {
-    return <div>Cargando...</div>;
-  }
-
-  if (!currentUser) {
-    return <div>No se pudo cargar la seguridad de tu cuenta.</div>;
-  }
 
   const isGoogle = currentUser.authMethod === "google";
 

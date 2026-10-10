@@ -97,7 +97,7 @@ export function TransactionsBrowser() {
   const searchParams = useSearchParams();
   const toast = useToast();
   const { currentUser } = useCurrentUser();
-  const currency = currentUser?.currency ?? "USD";
+  const currency = currentUser.currency;
   const [items, setItems] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);

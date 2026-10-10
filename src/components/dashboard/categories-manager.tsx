@@ -15,18 +15,20 @@ import { useToast } from "@/components/ui/toast";
 import { type Category, MAX_CUSTOM_CATEGORIES, type TxType } from "@/lib/data";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
-const SWATCHES = [
-  "#c4611a",
-  "#4fbfa8",
-  "#8e2a5f",
-  "#d9a81e",
-  "#1f4e9c",
-  "#e07a88",
-  "#3c6b1c",
-  "#a98ce8",
-  "#1f6b4a",
-  "#6d7c72",
-];
+// El nombre es lo que oye el lector de pantalla: un hex no le dice nada.
+const SWATCH_NAMES: Record<string, string> = {
+  "#c4611a": "Naranja",
+  "#4fbfa8": "Turquesa",
+  "#8e2a5f": "Ciruela",
+  "#d9a81e": "Mostaza",
+  "#1f4e9c": "Azul",
+  "#e07a88": "Rosa",
+  "#3c6b1c": "Oliva",
+  "#a98ce8": "Lavanda",
+  "#1f6b4a": "Verde",
+  "#6d7c72": "Gris",
+};
+const SWATCHES = Object.keys(SWATCH_NAMES);
 
 export function CategoriesManager({ items }: { items: Category[] }) {
   const toast = useToast();
@@ -387,7 +389,7 @@ function CategoryModal({
                   style={{ backgroundColor: s }}
                   aria-hidden="true"
                 />
-                <span className="sr-only">Tinta {s}</span>
+                <span className="sr-only">{SWATCH_NAMES[s]}</span>
               </label>
             ))}
           </div>
