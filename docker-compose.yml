@@ -1,0 +1,60 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gonances
+      POSTGRES_USER: gonances
+      POSTGRES_PASSWORD: local-gonances-password
+    ports:
+      - "5432:5432"
+    volumes:
+      - gonances-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gonances -d gonances"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  migrate:
+    build:
+      context: .
+      target: builder
+      args:
+        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_ADAPTER: pg
+      DATABASE_URL: postgresql://gonances:local-gonances-password@db:5432/gonances?schema=public
+    command: ["sh", "-c", "pnpm exec prisma migrate deploy && pnpm db:seed"]
+    restart: "no"
+  app:
+    build:
+      context: .
+      target: runner
+      args:
+        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      DATABASE_ADAPTER: pg
+      DATABASE_URL: postgresql://gonances:local-gonances-password@db:5432/gonances?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET in .env}
+      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+    ports:
+      - "3000:3000"
+
+volumes:
+  gonances-postgres:
