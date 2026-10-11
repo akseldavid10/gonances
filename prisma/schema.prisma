@@ -79,6 +79,9 @@ model Transaction {
   type        MovementType
   description String?
   date        DateTime     @db.Date
+  originalAmount Decimal? @db.Decimal(18, 2) @map("original_amount")
+  originalCurrency CurrencyCode? @map("original_currency")
+  exchangeSnapshot Json? @map("exchange_snapshot")
 
   userId String @map("user_id")
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -91,6 +94,14 @@ model Transaction {
   @@index([userId, date])
   @@index([categoryId])
   @@map("transactions")
+}
+
+model HistoricalExchangeRate {
+  date DateTime @id @db.Date
+  snapshot Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("historical_exchange_rates")
 }
 
 model RefreshSession {

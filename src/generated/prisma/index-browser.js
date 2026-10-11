@@ -156,8 +156,17 @@ exports.Prisma.TransactionScalarFieldEnum = {
   type: 'type',
   description: 'description',
   date: 'date',
+  originalAmount: 'originalAmount',
+  originalCurrency: 'originalCurrency',
+  exchangeSnapshot: 'exchangeSnapshot',
   userId: 'userId',
   categoryId: 'categoryId',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.HistoricalExchangeRateScalarFieldEnum = {
+  date: 'date',
+  snapshot: 'snapshot',
   createdAt: 'createdAt'
 };
 
@@ -186,6 +195,11 @@ exports.Prisma.SortOrder = {
 };
 
 exports.Prisma.JsonNullValueInput = {
+  JsonNull: Prisma.JsonNull
+};
+
+exports.Prisma.NullableJsonNullValueInput = {
+  DbNull: Prisma.DbNull,
   JsonNull: Prisma.JsonNull
 };
 
@@ -227,6 +241,7 @@ exports.Prisma.ModelName = {
   ExchangeRateCache: 'ExchangeRateCache',
   Category: 'Category',
   Transaction: 'Transaction',
+  HistoricalExchangeRate: 'HistoricalExchangeRate',
   RefreshSession: 'RefreshSession',
   RateLimitBucket: 'RateLimitBucket'
 };

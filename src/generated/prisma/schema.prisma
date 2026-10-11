@@ -74,11 +74,14 @@ model Category {
 }
 
 model Transaction {
-  id          String       @id @default(uuid())
-  amount      Decimal      @db.Decimal(10, 2)
-  type        MovementType
-  description String?
-  date        DateTime     @db.Date
+  id               String        @id @default(uuid())
+  amount           Decimal       @db.Decimal(10, 2)
+  type             MovementType
+  description      String?
+  date             DateTime      @db.Date
+  originalAmount   Decimal?      @map("original_amount") @db.Decimal(18, 2)
+  originalCurrency CurrencyCode? @map("original_currency")
+  exchangeSnapshot Json?         @map("exchange_snapshot")
 
   userId String @map("user_id")
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -91,6 +94,14 @@ model Transaction {
   @@index([userId, date])
   @@index([categoryId])
   @@map("transactions")
+}
+
+model HistoricalExchangeRate {
+  date      DateTime @id @db.Date
+  snapshot  Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("historical_exchange_rates")
 }
 
 model RefreshSession {
