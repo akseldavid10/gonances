@@ -361,6 +361,7 @@ components:
       enum: [USD, EUR, JPY, GBP, COP]
     TransactionInput:
       type: object
+      description: Guarda importe original y tasas históricas de la fecha. Si faltan tasas devuelve 422 con code HISTORICAL_RATES_UNAVAILABLE; pueden proporcionarse tasas manuales.
       required: [amount, type, date, category_id]
       properties:
         amount:
@@ -372,8 +373,10 @@ components:
         description: { type: [string, "null"], maxLength: 200 }
         date: { type: string, format: date }
         category_id: { type: string }
+        exchange_rates: { $ref: "#/components/schemas/ManualExchangeRates" }
     TransactionUpdateInput:
       type: object
+      description: Si solo cambia la fecha conserva el importe y moneda originales, con tasas para la nueva fecha. Sin cambio de fecha conserva las tasas guardadas, salvo reemplazo manual explícito.
       minProperties: 1
       properties:
         amount:
@@ -385,6 +388,18 @@ components:
         description: { type: [string, "null"], maxLength: 200 }
         date: { type: string, format: date }
         category_id: { type: string }
+        exchange_rates: { $ref: "#/components/schemas/ManualExchangeRates" }
+    ManualExchangeRates:
+      type: object
+      description: Tasas históricas aportadas por el usuario, unidades de cada moneda por 1 USD. Se guardan con fuente manual, sin modificar las tasas de otros movimientos.
+      required: [USD, EUR, JPY, GBP, COP]
+      additionalProperties: false
+      properties:
+        USD: { type: string, const: "1" }
+        EUR: { type: string, pattern: '^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$' }
+        JPY: { type: string, pattern: '^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$' }
+        GBP: { type: string, pattern: '^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$' }
+        COP: { type: string, pattern: '^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$' }
   responses:
     Unauthorized:
       description: Sesión ausente, inválida, vencida o revocada

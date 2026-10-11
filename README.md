@@ -104,9 +104,20 @@ pnpm test
 
 El MVP no incluye conexión bancaria, presupuestos/alertas, exportación CSV/PDF ni aplicaciones nativas. La web es responsive. Los gráficos de la landing usan datos ficticios en USD; cada usuario puede ver y registrar su libro en USD, EUR, JPY, GBP o COP.
 
-Las tasas se solicitan a ExchangeRate-API con base USD. Guarda únicamente la llave en `EXCHANGE_RATE_API_KEY`; la aplicación construye la ruta `/API_KEY/latest/USD`. `CRON_SECRET` protege únicamente el endpoint interno del cron y es independiente de la llave del proveedor.
+Las tasas actuales de referencia del selector se solicitan a ExchangeRate-API con base USD. Guarda únicamente la llave en `EXCHANGE_RATE_API_KEY`; la aplicación construye la ruta `/API_KEY/latest/USD`. `CRON_SECRET` protege únicamente el endpoint interno del cron y es independiente de la llave del proveedor.
 
-La caché limita las consultas externas a un intento cada 24 horas, compartido entre todos los usuarios. El cron se ejecuta diariamente a la 01:00 UTC; las peticiones de la aplicación también pueden renovar la caché cuando vence. Si el proveedor falla, se conservan las últimas tasas válidas y se espera al siguiente intervalo. Son tasas de actualización diaria, no cotizaciones en tiempo real.
+La caché de tasas actuales limita las consultas externas a un intento cada 24 horas, compartido entre todos los usuarios. El cron se ejecuta diariamente a la 01:00 UTC; las peticiones de la aplicación también pueden renovar la caché cuando vence. Si el proveedor falla, se conservan las últimas tasas válidas y se espera al siguiente intervalo. Son tasas de actualización diaria, no cotizaciones en tiempo real.
+
+### Importes históricos
+
+- Cada movimiento nuevo conserva `originalAmount`, `originalCurrency` y `exchangeSnapshot` (tasas, fecha solicitada, fechas de referencia por moneda y fuente). `amount` sigue siendo su equivalente USD.
+- Las tasas históricas se consultan en [Frankfurter v2](https://frankfurter.dev/), sin llave, por la fecha civil del movimiento. Cada fecha se guarda de forma inmutable en `historical_exchange_rates` y se copia al movimiento. Consultar una fecha nueva puede generar una petición independiente del cron diario de tasas actuales.
+- En días sin cotización se acepta la última referencia anterior devuelta por el proveedor y se conserva su fecha real; nunca se usa una tasa posterior ni se sustituye por la actual. Si faltan monedas o el proveedor falla, el formulario permite reintentar o introducir las cuatro tasas manualmente (unidades por 1 USD), marcadas como fuente manual.
+- Tablas, resúmenes, saldos y gráficos convierten **cada movimiento antes de sumar**. Editar solo la descripción no altera su valoración; cambiar la fecha conserva importe y moneda originales y obtiene tasas para la nueva fecha.
+- Los movimientos anteriores a esta función conservan su USD almacenado. Al necesitar conversión, se recuperan tasas históricas para su fecha y se guardan. No se pueden reconstruir la moneda y el importe originales de entradas antiguas que ya se habían convertido a USD con otra tasa. Para corregir esas entradas hay que editar explícitamente el importe con la moneda correspondiente.
+- Antes de desplegar estos cambios, ejecutar `pnpm exec prisma migrate deploy` y `pnpm exec prisma generate`. La migración `20261010160000_historical_exchange_rates` solo añade columnas y una tabla; no borra movimientos ni modifica sus importes.
+
+La CI toma la versión de pnpm de `packageManager` en `package.json`; no se fija otra versión en `pnpm/action-setup`.
 
 El despliegue en Vercel/Neon requiere configurar variables en el proveedor y registrar el URI OAuth correspondiente. Este repositorio no contiene credenciales ni confirma que un servicio cloud ya esté desplegado.
 
