@@ -1,12 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { MovementType, type Prisma } from "@/generated/prisma";
 import { parseDateOnly, serializeDateOnly } from "@/lib/date-only";
-import {
-  convertedNumber,
-  currencyToUsd,
-  getExchangeRate,
-} from "@/lib/exchange-rates";
 import getInfoToken from "@/lib/getInfoToken";
+import {
+  HistoricalRateError,
+  historicalAmount,
+  manualSnapshot,
+} from "@/lib/historical-currency";
+import {
+  getHistoricalRates,
+  transactionSnapshot,
+  valuedTransactions,
+} from "@/lib/historical-exchange-rates";
 import { prisma } from "@/lib/prisma";
 import {
   isValidTransactionDescription,
@@ -29,7 +34,6 @@ export async function GET(req: NextRequest) {
         { status: 404 },
       );
     }
-    const { rate } = await getExchangeRate(user.currency);
 
     const { searchParams } = req.nextUrl;
     const page = Number(searchParams.get("page") ?? 1);
@@ -113,9 +117,13 @@ export async function GET(req: NextRequest) {
       }),
       prisma.transaction.count({ where }),
     ]);
-    const serializedItems = items.map((t) => ({
+    const valued = await valuedTransactions(items, user.currency);
+    const serializedItems = valued.map((t) => ({
       id: t.id,
-      amount: convertedNumber(t.amount, rate),
+      amount: t.displayAmount,
+      exchangeSnapshot: t.historicalSnapshot,
+      originalAmount: t.originalAmount?.toNumber() ?? null,
+      originalCurrency: t.originalCurrency,
       type: t.type,
       description: t.description,
       date: serializeDateOnly(t.date),
@@ -137,7 +145,12 @@ export async function GET(req: NextRequest) {
       page,
       pages: Math.max(1, Math.ceil(total / limit)),
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof HistoricalRateError)
+      return NextResponse.json(
+        { message: error.message, code: "HISTORICAL_RATES_UNAVAILABLE" },
+        { status: 503 },
+      );
     return NextResponse.json(
       { message: "Error interno del servidor" },
       { status: 500 },
@@ -185,17 +198,6 @@ export async function POST(req: NextRequest) {
           message:
             "amount debe ser positivo, tener hasta dos decimales y no exceder el máximo permitido",
         },
-        { status: 400 },
-      );
-    }
-    const { rate } = await getExchangeRate(user.currency);
-    const usdAmount = currencyToUsd(parsedAmount, rate);
-    if (
-      usdAmount.lessThanOrEqualTo(0) ||
-      usdAmount.greaterThan("99999999.99")
-    ) {
-      return NextResponse.json(
-        { message: "El monto convertido no cabe en el rango permitido" },
         { status: 400 },
       );
     }
@@ -256,9 +258,31 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Crear transacción
+    const snapshot =
+      body.exchange_rates !== undefined
+        ? manualSnapshot(body.exchange_rates, date)
+        : await getHistoricalRates(date);
+    const usdAmount = historicalAmount(
+      parsedAmount,
+      user.currency,
+      "USD",
+      snapshot,
+    );
+    if (
+      usdAmount.lessThanOrEqualTo(0) ||
+      usdAmount.greaterThan("99999999.99")
+    ) {
+      return NextResponse.json(
+        { message: "El monto convertido no cabe en el rango permitido" },
+        { status: 400 },
+      );
+    }
     const transaction = await prisma.transaction.create({
       data: {
         amount: usdAmount,
+        originalAmount: parsedAmount,
+        originalCurrency: user.currency,
+        exchangeSnapshot: snapshot,
         type: type as MovementType,
         description: description ?? null,
         date: parseDateOnly(date) as Date,
@@ -271,7 +295,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         id: transaction.id,
-        amount: convertedNumber(transaction.amount, rate),
+        amount: Number(parsedAmount),
+        exchangeSnapshot: snapshot,
         currency: user.currency,
         type: transaction.type,
         description: transaction.description,
@@ -282,6 +307,11 @@ export async function POST(req: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
+    if (error instanceof HistoricalRateError)
+      return NextResponse.json(
+        { message: error.message, code: "HISTORICAL_RATES_UNAVAILABLE" },
+        { status: 422 },
+      );
     console.error(error);
     return NextResponse.json(
       { message: "Error interno del servidor" },
@@ -310,7 +340,6 @@ export async function PUT(req: NextRequest) {
         { status: 404 },
       );
     }
-    const { rate } = await getExchangeRate(user.currency);
 
     // 3. Obtener ID de la transacción
     const { searchParams } = new URL(req.url);
@@ -348,7 +377,7 @@ export async function PUT(req: NextRequest) {
     const { amount, type, description, date, category_id } = body;
 
     // 6. Validar amount
-    let parsedAmount: ReturnType<typeof currencyToUsd> | undefined;
+    let inputAmount: string | undefined;
     if (amount !== undefined && amount !== null) {
       const validAmount = parseTransactionAmount(amount);
       if (validAmount === null) {
@@ -360,16 +389,7 @@ export async function PUT(req: NextRequest) {
           { status: 400 },
         );
       }
-      parsedAmount = currencyToUsd(validAmount, rate);
-      if (
-        parsedAmount.lessThanOrEqualTo(0) ||
-        parsedAmount.greaterThan("99999999.99")
-      ) {
-        return NextResponse.json(
-          { message: "El monto convertido no cabe en el rango permitido" },
-          { status: 400 },
-        );
-      }
+      inputAmount = validAmount;
     }
 
     // 7. Validar type
@@ -453,11 +473,46 @@ export async function PUT(req: NextRequest) {
     }
 
     // 10. Actualizar transacción
+    const finalDate = serializeDateOnly(parsedDate ?? existingTransaction.date);
+    const snapshot =
+      body.exchange_rates !== undefined
+        ? manualSnapshot(body.exchange_rates, finalDate)
+        : finalDate === serializeDateOnly(existingTransaction.date)
+          ? await transactionSnapshot(existingTransaction)
+          : await getHistoricalRates(finalDate);
+    // Cambiar solo fecha conserva el importe y moneda originales y aplica la nueva fecha.
+    const originalAmount =
+      inputAmount ??
+      existingTransaction.originalAmount ??
+      existingTransaction.amount;
+    const originalCurrency =
+      inputAmount !== undefined
+        ? user.currency
+        : (existingTransaction.originalCurrency ?? "USD");
+    const parsedAmount = historicalAmount(
+      originalAmount,
+      originalCurrency,
+      "USD",
+      snapshot,
+    );
+    if (
+      parsedAmount.lessThanOrEqualTo(0) ||
+      parsedAmount.greaterThan("99999999.99")
+    ) {
+      return NextResponse.json(
+        { message: "El monto convertido no cabe en el rango permitido" },
+        { status: 400 },
+      );
+    }
     const updatedTransaction = await prisma.transaction.update({
       where: {
         id: existingTransaction.id,
       },
       data: {
+        ...(inputAmount !== undefined
+          ? { originalAmount: inputAmount, originalCurrency: user.currency }
+          : {}),
+        exchangeSnapshot: snapshot,
         ...(parsedAmount !== undefined && {
           amount: parsedAmount,
         }),
@@ -483,7 +538,13 @@ export async function PUT(req: NextRequest) {
     // 11. Responder
     return NextResponse.json({
       id: updatedTransaction.id,
-      amount: convertedNumber(updatedTransaction.amount, rate),
+      amount: historicalAmount(
+        originalAmount,
+        originalCurrency,
+        user.currency,
+        snapshot,
+      ).toNumber(),
+      exchangeSnapshot: snapshot,
       currency: user.currency,
       type: updatedTransaction.type,
       description: updatedTransaction.description,
@@ -492,6 +553,11 @@ export async function PUT(req: NextRequest) {
       created_at: updatedTransaction.createdAt,
     });
   } catch (error) {
+    if (error instanceof HistoricalRateError)
+      return NextResponse.json(
+        { message: error.message, code: "HISTORICAL_RATES_UNAVAILABLE" },
+        { status: 422 },
+      );
     console.error(error);
 
     return NextResponse.json(
