@@ -98,7 +98,7 @@ export function CurrencySwitcher({ onChanged }: { onChanged?: () => void }) {
         onClose={() => setOpen(false)}
         closeDisabled={saving}
         title="Moneda de tu libro"
-        description={`Compara el valor de 1 ${currency} y elige la moneda que se guardará en tu cuenta.`}
+        description={`Referencia actual de 1 ${currency}. Los movimientos se convierten con las tasas históricas guardadas para su fecha, no con estas tasas actuales.`}
       >
         <fieldset className="grid gap-2 sm:grid-cols-2">
           <legend className="sr-only">Elige la moneda de tu cuenta</legend>
@@ -163,12 +163,7 @@ export function CurrencySwitcher({ onChanged }: { onChanged?: () => void }) {
           </Button>
           <Button
             onClick={saveCurrency}
-            disabled={
-              saving ||
-              loadingRates ||
-              !rates?.rates[currency] ||
-              currency === user.currency
-            }
+            disabled={saving || currency === user.currency}
           >
             {saving ? "Actualizando…" : "Usar esta moneda"}
           </Button>

@@ -12,6 +12,7 @@ export type Category = {
 };
 
 export type Transaction = {
+  exchangeSnapshot?: import("./historical-currency").ExchangeSnapshot | null;
   id: string;
   amount: number;
   type: TxType;

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
+import { CURRENCY_CODES } from "@/lib/currencies";
 import type { Category, Transaction, TxType } from "@/lib/data";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
@@ -34,6 +35,7 @@ export function NewTransactionModal({
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [manualRates, setManualRates] = useState(false);
   const currency = currentUser.currency;
   const initialAmount = editing
     ? currency === "JPY"
@@ -45,6 +47,7 @@ export function NewTransactionModal({
     if (!open) return;
     setType(editing?.type ?? "EXPENSE");
     setCategoryId(editing?.categoryId ?? "");
+    setManualRates(false);
     let active = true;
     setLoadingCategories(true);
     fetchWithAuth("/api/v1/categories", { cache: "no-store" })
@@ -93,6 +96,21 @@ export function NewTransactionModal({
       description: (formData.get("description") as string) || null,
       date: formData.get("date") as string,
       category_id: categoryId,
+      ...(manualRates
+        ? {
+            exchange_rates: Object.fromEntries(
+              CURRENCY_CODES.map((code) => [
+                code,
+                code === "USD"
+                  ? "1"
+                  : String(formData.get(`rate-${code}`) ?? "").replace(
+                      ",",
+                      ".",
+                    ),
+              ]),
+            ),
+          }
+        : {}),
     };
 
     setIsSubmitting(true);
@@ -113,6 +131,8 @@ export function NewTransactionModal({
 
       if (!res.ok) {
         const errorBody = await res.json().catch(() => null);
+        if (errorBody?.code === "HISTORICAL_RATES_UNAVAILABLE")
+          setManualRates(true);
         toast(errorBody?.message ?? "No se pudo guardar el movimiento", "warn");
         return;
       }
@@ -236,10 +256,45 @@ export function NewTransactionModal({
             id="date"
             name="date"
             type="date"
+            max={today()}
             required
             defaultValue={editing?.date ?? today()}
           />
         </Field>
+
+        <p className="text-[12px] text-ink-soft">
+          Se guardarán las tasas históricas de la fecha del movimiento. En días
+          sin publicación se usa la última referencia anterior disponible,
+          conservando su fecha y fuente.
+        </p>
+        {manualRates ? (
+          <fieldset className="grid gap-3 rounded border border-rule p-3">
+            <legend>Tasas históricas manuales</legend>
+            <p className="text-[12px] text-ink-soft">
+              No se encontraron todas las tasas. Introduce cuántas unidades de
+              cada moneda equivalían a 1 USD en esa fecha. Se guardarán como
+              fuente manual.
+            </p>
+            {CURRENCY_CODES.filter((code) => code !== "USD").map((code) => (
+              <Field
+                key={code}
+                label={`1 USD en ${code}`}
+                htmlFor={`rate-${code}`}
+              >
+                <Input
+                  id={`rate-${code}`}
+                  name={`rate-${code}`}
+                  required
+                  inputMode="decimal"
+                  pattern="[0-9]+([.,][0-9]+)?"
+                />
+              </Field>
+            ))}
+            <Button variant="outline" onClick={() => setManualRates(false)}>
+              Reintentar consulta automática
+            </Button>
+          </fieldset>
+        ) : null}
 
         <Field label="Descripción" htmlFor="description" hint="Opcional.">
           <Input

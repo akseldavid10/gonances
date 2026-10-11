@@ -454,6 +454,14 @@ export function TransactionsBrowser() {
                         }`}
                       >
                         {signedMoney(t.amount, t.type, currency)}
+                        {t.exchangeSnapshot ? (
+                          <span className="mt-1 block text-[11px] text-ink-faint">
+                            {t.exchangeSnapshot.source === "manual"
+                              ? "Tasa manual"
+                              : "Tasa histórica"}{" "}
+                            · {t.exchangeSnapshot.rateDates[currency]}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3 text-right align-middle whitespace-nowrap sm:px-5">
                         <button

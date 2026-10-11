@@ -5,7 +5,6 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { deleteManagedAvatar } from "@/lib/cloudinary";
 import { isCurrencyCode } from "@/lib/currencies";
-import { getExchangeRate } from "@/lib/exchange-rates";
 import getInfoToken from "@/lib/getInfoToken";
 import { prisma } from "@/lib/prisma";
 import { allowRateLimitedRequest, requestIp } from "@/lib/rate-limit";
@@ -98,16 +97,6 @@ export async function PUT(request: Request) {
         { error: "Datos de perfil inválidos" },
         { status: 400 },
       );
-    }
-    if (currency !== undefined) {
-      try {
-        await getExchangeRate(currency);
-      } catch {
-        return NextResponse.json(
-          { error: "No hay una tasa disponible para esa moneda" },
-          { status: 503 },
-        );
-      }
     }
 
     const user = await prisma.user.update({
