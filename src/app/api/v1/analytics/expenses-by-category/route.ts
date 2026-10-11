@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { authenticatedUserId } from "@/lib/api-auth";
-import { convertedNumber, getExchangeRate } from "@/lib/exchange-rates";
+import { valuedTransactions } from "@/lib/historical-exchange-rates";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
@@ -35,9 +35,8 @@ export async function GET(request: NextRequest) {
         { status: 404 },
       );
     }
-    const [{ rate }, records] = await Promise.all([
-      getExchangeRate(user.currency),
-      prisma.transaction.findMany({
+    const records = await valuedTransactions(
+      await prisma.transaction.findMany({
         where: {
           userId,
           type: "EXPENSE",
@@ -48,7 +47,8 @@ export async function GET(request: NextRequest) {
         },
         include: { category: true },
       }),
-    ]);
+      user.currency,
+    );
     const byCategory = new Map<
       string,
       { category: string; color: string; amount: number }
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
         color: record.category.color,
         amount: 0,
       };
-      row.amount += record.amount.toNumber();
+      row.amount = Math.round((row.amount + record.displayAmount) * 100) / 100;
       byCategory.set(record.categoryId, row);
     }
     const total = [...byCategory.values()].reduce(
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
       .map(([categoryId, row]) => ({
         categoryId,
         ...row,
-        amount: convertedNumber(row.amount, rate),
+        amount: row.amount,
         percentage:
           total === 0 ? 0 : Math.round((row.amount / total) * 1000) / 10,
       }))
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       currency: user.currency,
       items,
-      total: convertedNumber(total, rate),
+      total: Math.round(total * 100) / 100,
     });
   } catch {
     return NextResponse.json(

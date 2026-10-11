@@ -1,20 +1,6 @@
-import { convertedNumber, getExchangeRate } from "@/lib/exchange-rates";
+import { Prisma } from "@/generated/prisma/client";
+import { valuedTransactions } from "@/lib/historical-exchange-rates";
 import { prisma } from "@/lib/prisma";
-
-export async function getRecentTransactions(userId: string, now = new Date()) {
-  const start = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1),
-  );
-  const end = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
-  );
-  const records = await prisma.transaction.findMany({
-    where: { userId, date: { gte: start, lt: end } },
-    include: { category: true },
-    orderBy: { date: "asc" },
-  });
-  return records;
-}
 
 export async function getMonthlyAnalytics(userId: string, now = new Date()) {
   const user = await prisma.user.findUnique({
@@ -22,112 +8,87 @@ export async function getMonthlyAnalytics(userId: string, now = new Date()) {
     select: { currency: true },
   });
   if (!user) throw new Error("Usuario no encontrado");
-  const { rate } = await getExchangeRate(user.currency);
-  const start = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1),
+  const records = await valuedTransactions(
+    await prisma.transaction.findMany({
+      where: { userId },
+      include: { category: true },
+      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+    }),
+    user.currency,
   );
-  const records = await getRecentTransactions(userId, now);
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+  const start = new Date(Date.UTC(year, month - 5, 1));
+  const end = new Date(Date.UTC(year, month + 1, 1));
+  const sum = (rows: typeof records, type: "INCOME" | "EXPENSE") =>
+    rows
+      .filter((r) => r.type === type)
+      .reduce((total, r) => total.plus(r.displayAmount), new Prisma.Decimal(0));
+  const monthRows = (y: number, m: number) =>
+    records.filter(
+      (r) => r.date.getUTCFullYear() === y && r.date.getUTCMonth() === m,
+    );
+  const current = monthRows(year, month);
   const trends = Array.from({ length: 6 }, (_, index) => {
-    const date = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5 + index, 15),
-    );
-    const year = date.getUTCFullYear();
-    const month = date.getUTCMonth();
-    const monthRecords = records.filter(
-      (record) =>
-        record.date.getUTCFullYear() === year &&
-        record.date.getUTCMonth() === month,
-    );
-    const incomes = monthRecords
-      .filter((record) => record.type === "INCOME")
-      .reduce((sum, record) => sum + record.amount.toNumber(), 0);
-    const expenses = monthRecords
-      .filter((record) => record.type === "EXPENSE")
-      .reduce((sum, record) => sum + record.amount.toNumber(), 0);
+    const date = new Date(Date.UTC(year, month - 5 + index, 15));
+    const y = date.getUTCFullYear();
+    const m = date.getUTCMonth();
+    const rows = monthRows(y, m);
     return {
-      key: `${year}-${month}`,
-      year,
-      month,
+      key: `${y}-${m}`,
+      year: y,
+      month: m,
       label: new Intl.DateTimeFormat("es", {
         month: "short",
         timeZone: "UTC",
       }).format(date),
-      incomes: convertedNumber(incomes, rate),
-      expenses: convertedNumber(expenses, rate),
+      incomes: sum(rows, "INCOME").toNumber(),
+      expenses: sum(rows, "EXPENSE").toNumber(),
     };
   });
-
-  const grouped = new Map<
+  const groups = new Map<
     string,
-    { name: string; color: string; amount: number }
+    { name: string; color: string; amount: Prisma.Decimal }
   >();
   for (const record of records) {
-    if (record.type !== "EXPENSE" || record.category.type !== "EXPENSE")
+    if (record.type !== "EXPENSE" || record.date < start || record.date >= end)
       continue;
-    const group = grouped.get(record.categoryId) ?? {
+    const row = groups.get(record.categoryId) ?? {
       name: record.category.name,
       color: record.category.color,
-      amount: 0,
+      amount: new Prisma.Decimal(0),
     };
-    group.amount += record.amount.toNumber();
-    grouped.set(record.categoryId, group);
+    row.amount = row.amount.plus(record.displayAmount);
+    groups.set(record.categoryId, row);
   }
-  const totalExpenses = [...grouped.values()].reduce(
-    (sum, category) => sum + category.amount,
-    0,
+  const total = [...groups.values()].reduce(
+    (s, r) => s.plus(r.amount),
+    new Prisma.Decimal(0),
   );
-  const expensesByCategory = [...grouped.entries()]
-    .map(([categoryId, category]) => ({
-      categoryId,
-      category: category.name,
-      color: category.color,
-      amount: convertedNumber(category.amount, rate),
-      percentage:
-        totalExpenses === 0
-          ? 0
-          : Math.round((category.amount / totalExpenses) * 1000) / 10,
-    }))
-    .sort((a, b) => b.amount - a.amount);
-
-  const [lifetimeGroups, currentMonthGroups] = await Promise.all([
-    prisma.transaction.groupBy({
-      by: ["type"],
-      where: { userId },
-      _sum: { amount: true },
-    }),
-    prisma.transaction.groupBy({
-      by: ["type"],
-      where: {
-        userId,
-        date: {
-          gte: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
-          lt: new Date(
-            Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
-          ),
-        },
-      },
-      _sum: { amount: true },
-    }),
-  ]);
-  const sumFor = (groups: typeof lifetimeGroups, type: "INCOME" | "EXPENSE") =>
-    groups.find((group) => group.type === type)?._sum.amount?.toNumber() ?? 0;
-
-  const incomes = sumFor(currentMonthGroups, "INCOME");
-  const expenses = sumFor(currentMonthGroups, "EXPENSE");
-
   return {
     summary: {
-      total_balance: convertedNumber(
-        sumFor(lifetimeGroups, "INCOME") - sumFor(lifetimeGroups, "EXPENSE"),
-        rate,
-      ),
-      total_incomes: convertedNumber(incomes, rate),
-      total_expenses: convertedNumber(expenses, rate),
+      total_balance: sum(records, "INCOME")
+        .minus(sum(records, "EXPENSE"))
+        .toNumber(),
+      total_incomes: sum(current, "INCOME").toNumber(),
+      total_expenses: sum(current, "EXPENSE").toNumber(),
     },
     monthlyTrends: trends,
-    expensesByCategory,
-    currentMonthExpenses: convertedNumber(expenses, rate),
+    expensesByCategory: [...groups.entries()]
+      .map(([categoryId, row]) => ({
+        categoryId,
+        category: row.name,
+        color: row.color,
+        amount: row.amount.toNumber(),
+        percentage: total.isZero()
+          ? 0
+          : row.amount.div(total).times(100).toDecimalPlaces(1).toNumber(),
+      }))
+      .sort((a, b) => b.amount - a.amount),
+    currentMonthExpenses: sum(current, "EXPENSE").toNumber(),
     currency: user.currency,
     windowStart: start,
+    records,
+    monthCount: current.length,
   };
 }

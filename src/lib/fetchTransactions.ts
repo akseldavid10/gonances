@@ -1,107 +1,40 @@
-import type { MovementType } from "@/generated/prisma/client";
-import {
-  expensesByCategory,
-  monthlyTrends,
-  type Transaction,
-} from "@/lib/data";
-import { convertedNumber, getExchangeRate } from "@/lib/exchange-rates";
+import { getMonthlyAnalytics } from "@/lib/analytics";
+import { expensesByCategory, type Transaction } from "@/lib/data";
 import getInfoToken from "@/lib/getInfoToken";
-import { prisma } from "@/lib/prisma";
-
-function serializeTransaction(
-  transaction: Awaited<ReturnType<typeof recentTransactions>>[number],
-  rate: Parameters<typeof convertedNumber>[1],
-): Transaction {
-  return {
-    id: transaction.id,
-    amount: convertedNumber(transaction.amount, rate),
-    type: transaction.type,
-    description: transaction.description,
-    date: transaction.date.toISOString().slice(0, 10),
-    categoryId: transaction.categoryId,
-    category: {
-      name: transaction.category.name,
-      color: transaction.category.color,
-      icon: transaction.category.icon ?? "Wallet",
-      type: transaction.category.type,
-      isCustom: transaction.category.userId !== null,
-    },
-  };
-}
-
-function recentTransactions(userId: string, start: Date, end: Date) {
-  return prisma.transaction.findMany({
-    where: { userId, date: { gte: start, lt: end } },
-    include: { category: true },
-    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-  });
-}
 
 export async function fetchDashboardData(referenceDate = new Date()) {
   const payload = await getInfoToken();
   if (typeof payload?.sub !== "string") throw new Error("No autenticado");
-
-  const userId = payload.sub;
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { currency: true },
-  });
-  if (!user) throw new Error("Usuario no encontrado");
-  const { rate } = await getExchangeRate(user.currency);
-  const year = referenceDate.getUTCFullYear();
-  const month = referenceDate.getUTCMonth();
-  const monthStart = new Date(Date.UTC(year, month, 1));
-  const nextMonth = new Date(Date.UTC(year, month + 1, 1));
-  const trendStart = new Date(Date.UTC(year, month - 5, 1));
-  const [lifetime, current, monthCount, trendRecords, latest] =
-    await Promise.all([
-      prisma.transaction.groupBy({
-        by: ["type"],
-        where: { userId },
-        _sum: { amount: true },
-      }),
-      prisma.transaction.groupBy({
-        by: ["type"],
-        where: { userId, date: { gte: monthStart, lt: nextMonth } },
-        _sum: { amount: true },
-      }),
-      prisma.transaction.count({
-        where: { userId, date: { gte: monthStart, lt: nextMonth } },
-      }),
-      recentTransactions(userId, trendStart, nextMonth),
-      prisma.transaction.findMany({
-        where: { userId },
-        include: { category: true },
-        orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-        take: 8,
-      }),
-    ]);
-  const sum = (groups: typeof lifetime, type: MovementType) =>
-    groups.find((group) => group.type === type)?._sum.amount?.toNumber() ?? 0;
-  const trendsInput = trendRecords.map((transaction) =>
-    serializeTransaction(transaction, rate),
-  );
-  const currentTransactions = trendsInput.filter((transaction) =>
-    transaction.date.startsWith(
-      `${year}-${String(month + 1).padStart(2, "0")}-`,
-    ),
-  );
-
+  const analytics = await getMonthlyAnalytics(payload.sub, referenceDate);
+  const transactions: Transaction[] = analytics.records.map((record) => ({
+    id: record.id,
+    amount: record.displayAmount,
+    type: record.type,
+    description: record.description,
+    date: record.date.toISOString().slice(0, 10),
+    categoryId: record.categoryId,
+    category: {
+      name: record.category.name,
+      color: record.category.color,
+      icon: record.category.icon ?? "Wallet",
+      type: record.category.type,
+      isCustom: record.category.userId !== null,
+    },
+  }));
   return {
     summary: {
-      balance: convertedNumber(
-        sum(lifetime, "INCOME") - sum(lifetime, "EXPENSE"),
-        rate,
-      ),
-      incomes: convertedNumber(sum(current, "INCOME"), rate),
-      expenses: convertedNumber(sum(current, "EXPENSE"), rate),
+      balance: analytics.summary.total_balance,
+      incomes: analytics.summary.total_incomes,
+      expenses: analytics.summary.total_expenses,
     },
-    breakdown: expensesByCategory(year, month, currentTransactions),
-    trends: monthlyTrends(6, trendsInput, referenceDate),
-    recent: latest.map((transaction) =>
-      serializeTransaction(transaction, rate),
+    breakdown: expensesByCategory(
+      referenceDate.getUTCFullYear(),
+      referenceDate.getUTCMonth(),
+      transactions,
     ),
-    monthCount,
-    currency: user.currency,
+    trends: analytics.monthlyTrends,
+    recent: transactions.slice(0, 8),
+    monthCount: analytics.monthCount,
+    currency: analytics.currency,
   };
 }
