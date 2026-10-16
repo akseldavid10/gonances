@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Gonances API
-  version: 1.0.0
+  version: 1.1.0
   license:
     name: Apache-2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
