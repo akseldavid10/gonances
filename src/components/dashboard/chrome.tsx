@@ -95,7 +95,21 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
             </p>
 
             <div className="ml-auto flex items-center gap-3">
-              <Button onClick={() => route.push("/transactions?new=1")}>
+              <Button
+                onClick={() => {
+                  if (pathname !== "/transactions") {
+                    route.push("/transactions?new=1");
+                    return;
+                  }
+                  const url = new URL(window.location.href);
+                  url.searchParams.set("new", "1");
+                  window.history.pushState(
+                    null,
+                    "",
+                    `${url.pathname}${url.search}${url.hash}`,
+                  );
+                }}
+              >
                 <Plus size={16} />
                 Nueva transacción
               </Button>

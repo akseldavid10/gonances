@@ -8,7 +8,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CurrencySwitcher } from "@/components/dashboard/currency-switcher";
 import { NewTransactionModal } from "@/components/dashboard/new-transaction-modal";
@@ -93,7 +93,6 @@ function rangeToDates(
 }
 
 export function TransactionsBrowser() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
   const { currentUser } = useCurrentUser();
@@ -111,6 +110,7 @@ export function TransactionsBrowser() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
   const [categoryId, setCategoryId] = useState("ALL");
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<Transaction | null>(null);
@@ -125,17 +125,26 @@ export function TransactionsBrowser() {
 
   function closeCreation() {
     setCreating(false);
-    if (searchParams.has("new"))
-      router.replace("/transactions", { scroll: false });
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("new")) {
+      url.searchParams.delete("new");
+      // Es estado del modal, no una navegación que requiera render del servidor.
+      window.history.replaceState(
+        null,
+        "",
+        `${url.pathname}${url.search}${url.hash}`,
+      );
+    }
   }
 
   useEffect(() => {
-    const timeout = window.setTimeout(
-      () => setDebouncedQuery(query.trim()),
-      250,
-    );
+    const timeout = window.setTimeout(() => {
+      if (query.trim() === debouncedQuery) return;
+      setDebouncedQuery(query.trim());
+      setPage(1);
+    }, 250);
     return () => window.clearTimeout(timeout);
-  }, [query]);
+  }, [query, debouncedQuery]);
 
   // Pide las transacciones al API, ya paginadas/filtradas/ordenadas por el
   // server. El endpoint saca el usuario (email/sub) del token, así que aquí
@@ -201,6 +210,7 @@ export function TransactionsBrowser() {
 
   useEffect(() => {
     let active = true;
+    setLoadingCategories(true);
     fetchWithAuth("/api/v1/categories", { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok)
@@ -210,6 +220,9 @@ export function TransactionsBrowser() {
       })
       .catch(() => {
         if (active) toast("No se pudieron cargar las categorías", "warn");
+      })
+      .finally(() => {
+        if (active) setLoadingCategories(false);
       });
     return () => {
       active = false;
@@ -272,7 +285,7 @@ export function TransactionsBrowser() {
           <input
             type="search"
             value={query}
-            onChange={(e) => reset(setQuery)(e.target.value)}
+            onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por concepto o categoría"
             aria-label="Buscar movimientos"
             className={`${inputClass} w-full pl-9`}
@@ -538,21 +551,19 @@ export function TransactionsBrowser() {
       </div>
 
       <NewTransactionModal
+        categories={categories}
+        loadingCategories={loadingCategories}
         open={creating}
         onClose={closeCreation}
-        onSaved={() => {
-          closeCreation();
-          fetchTransactions();
-        }}
+        onSaved={fetchTransactions}
       />
       <NewTransactionModal
+        categories={categories}
+        loadingCategories={loadingCategories}
         open={editing !== null}
         editing={editing}
         onClose={() => setEditing(null)}
-        onSaved={() => {
-          setEditing(null);
-          fetchTransactions();
-        }}
+        onSaved={fetchTransactions}
       />
 
       <Modal
