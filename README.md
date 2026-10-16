@@ -1,5 +1,11 @@
 # Gonances
 
+## Versiones
+
+Versión actual: **1.1.0**. Las notas de cada entrega están en [CHANGELOG.md](CHANGELOG.md).
+
+Se usa SemVer (`MAJOR.MINOR.PATCH`). Los cambios se agrupan en commits temáticos en `dev`; las entregas verificadas se integran en `main` con un commit de versión y una etiqueta `vX.Y.Z`. Una corrección compatible incrementa PATCH, una funcionalidad compatible incrementa MINOR y un cambio incompatible incrementa MAJOR.
+
 Aplicación web en español para registrar ingresos y gastos, organizarlos por categoría y analizarlos con gráficos. El repositorio implementa el backend con **Next.js Route Handlers**, no con FastAPI: frontend y API viven en la misma aplicación Next.js.
 
 ## Stack

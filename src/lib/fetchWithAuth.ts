@@ -10,7 +10,12 @@ function requestMethod(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 async function performFetch(input: RequestInfo | URL, init?: RequestInit) {
-  if (requestMethod(input, init) !== "GET") return fetch(input, init);
+  if (requestMethod(input, init) !== "GET") {
+    const response = await fetch(input, init);
+    // Una lectura iniciada antes de guardar ya no representa los datos actuales.
+    if (response.ok) pendingGetRequests.clear();
+    return response;
+  }
 
   const url =
     input instanceof Request
@@ -30,7 +35,11 @@ async function performFetch(input: RequestInfo | URL, init?: RequestInit) {
     .join("\n")}`;
   let pending = pendingGetRequests.get(key);
   if (!pending) {
-    pending = fetch(input, init).finally(() => pendingGetRequests.delete(key));
+    pending = fetch(input, init).finally(() => {
+      // Una petición antigua no debe quitar una lectura nueva tras una escritura.
+      if (pendingGetRequests.get(key) === pending)
+        pendingGetRequests.delete(key);
+    });
     pendingGetRequests.set(key, pending);
   }
   return (await pending).clone();
@@ -55,6 +64,7 @@ function publish(type: "refresh-success" | "session-expired" | "logout") {
 async function requestRefresh() {
   const response = await fetch("/api/v1/auth/refresh", { method: "POST" });
   if (response.ok) {
+    pendingGetRequests.clear();
     publish("refresh-success");
     return true;
   }
@@ -82,7 +92,10 @@ export function refreshSession(): Promise<boolean> {
 export async function logoutSession() {
   const run = async () => {
     const response = await fetch("/api/v1/auth/logout", { method: "POST" });
-    if (response.ok) publish("logout");
+    if (response.ok) {
+      pendingGetRequests.clear();
+      publish("logout");
+    }
     return response;
   };
   if (typeof navigator !== "undefined" && navigator.locks) {

@@ -33,6 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="es"
+      data-scroll-behavior="smooth"
       // El script de arranque cambia este atributo antes de que React hidrate.
       data-theme="light"
       suppressHydrationWarning

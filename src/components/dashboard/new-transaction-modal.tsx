@@ -22,18 +22,20 @@ export function NewTransactionModal({
   onClose,
   editing,
   onSaved,
+  categories,
+  loadingCategories,
 }: {
   open: boolean;
   onClose: () => void;
   editing?: Transaction | null;
   onSaved?: () => void; // para refrescar la lista de transacciones tras guardar
+  categories: Category[];
+  loadingCategories: boolean;
 }) {
   const toast = useToast();
   const { currentUser } = useCurrentUser();
   const [type, setType] = useState<TxType>("EXPENSE");
   const [categoryId, setCategoryId] = useState("");
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [manualRates, setManualRates] = useState(false);
   const currency = currentUser.currency;
@@ -48,25 +50,7 @@ export function NewTransactionModal({
     setType(editing?.type ?? "EXPENSE");
     setCategoryId(editing?.categoryId ?? "");
     setManualRates(false);
-    let active = true;
-    setLoadingCategories(true);
-    fetchWithAuth("/api/v1/categories", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok)
-          throw new Error("No se pudieron cargar las categorías");
-        const data = await response.json();
-        if (active) setCategories(Array.isArray(data.items) ? data.items : []);
-      })
-      .catch(() => {
-        if (active) toast("No se pudieron cargar las categorías", "warn");
-      })
-      .finally(() => {
-        if (active) setLoadingCategories(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [open, editing, toast]);
+  }, [open, editing]);
 
   const options = categories.filter((c) => c.type === type);
 
