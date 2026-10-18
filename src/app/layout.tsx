@@ -107,6 +107,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
         {/* biome-ignore lint/security/noDangerouslySetInnerHtml: script propio, sin datos del usuario, que guarda la zona horaria del navegador */}
         <script dangerouslySetInnerHTML={{ __html: timeZoneCookieScript }} />
+        <meta
+          name="google-site-verification"
+          content="f8hfedjZGhqoVpKQO6fnzHHBcMqRDR82e0oziK9I84A"
+        />
         <Analytics />
       </head>
       <body className="min-h-full flex flex-col">
