@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
 import { Bodoni_Moda, IBM_Plex_Sans } from "next/font/google";
 import {
@@ -21,7 +22,9 @@ const plex = IBM_Plex_Sans({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://gonances.vercel.app"),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000",
+  ),
   title: {
     default: "Gonances · Tu libro de cuentas personal",
     template: "%s · Gonances",
@@ -104,6 +107,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
         {/* biome-ignore lint/security/noDangerouslySetInnerHtml: script propio, sin datos del usuario, que guarda la zona horaria del navegador */}
         <script dangerouslySetInnerHTML={{ __html: timeZoneCookieScript }} />
+        <Analytics />
       </head>
       <body className="min-h-full flex flex-col">
         <ThemeProvider>{children}</ThemeProvider>
