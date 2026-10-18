@@ -1,12 +1,22 @@
 import type { MetadataRoute } from "next";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+  const baseUrl = "https://gonances.vercel.app";
   return [
     {
       url: new URL("/", baseUrl).toString(),
       changeFrequency: "weekly",
       priority: 1,
+    },
+    {
+      url: new URL("/login", baseUrl).toString(),
+      changeFrequency: "yearly",
+      priority: 0.5,
+    },
+    {
+      url: new URL("/register", baseUrl).toString(),
+      changeFrequency: "yearly",
+      priority: 0.5,
     },
     {
       url: new URL("/terms", baseUrl).toString(),
