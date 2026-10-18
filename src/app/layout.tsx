@@ -21,12 +21,72 @@ const plex = IBM_Plex_Sans({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://gonances.vercel.app"),
   title: {
     default: "Gonances · Tu libro de cuentas personal",
     template: "%s · Gonances",
   },
   description:
     "Anota lo que entra y lo que sale, y mira a dónde se va tu dinero cada mes.",
+  authors: [{ name: "Gonances", url: "/" }],
+  keywords: [
+    "finanzas personales",
+    "ingresos y gastos",
+    "libro de cuentas",
+    "presupuesto personal",
+    "control de gastos",
+    "Gonances",
+    "finanzas",
+    "gastos",
+    "dinero",
+    "manejo de dinero",
+  ],
+  openGraph: {
+    type: "website",
+    locale: "es_ES",
+    siteName: "Gonances",
+    title: "Gonances · Tu libro de cuentas personal",
+    description:
+      "Anota lo que entra y lo que sale, y mira a dónde se va tu dinero cada mes.",
+    url: "/",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Gonances - libro de cuentas personal",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: "@gonances",
+    creator: "@gonances",
+    images: ["/og-image.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  alternates: {
+    canonical: "/",
+  },
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
+  other: {
+    "theme-color": "#ffffff",
+    "color-scheme": "light dark",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

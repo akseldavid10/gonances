@@ -22,7 +22,7 @@ const columns = [
     links: [
       { href: "/terms", label: "Términos y condiciones" },
       { href: "/privacy", label: "Política de privacidad" },
-      { href: "mailto:hola@gonances.app", label: "hola@gonances.app" },
+      { href: "mailto:gonances1@gmail.com", label: "gonances1@gmail.com" },
     ],
   },
 ];

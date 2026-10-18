@@ -33,10 +33,6 @@ export default function TermsPage() {
                 correo o con tu cuenta de Google. Eres responsable de mantener
                 tu contraseña en privado y de lo que se haga desde tu sesión.
               </p>
-              <p>
-                Para abrir una cuenta debes tener al menos 18 años, o la edad
-                mínima legal en tu país para aceptar estos términos.
-              </p>
             </>
           ),
         },
@@ -104,10 +100,10 @@ export default function TermsPage() {
             <p>
               Para cualquier consulta sobre estos términos, escribe a{" "}
               <a
-                href="mailto:hola@gonances.app"
+                href="mailto:gonances1@gmail.com"
                 className="text-ink underline underline-offset-4"
               >
-                hola@gonances.app
+                gonances1@gmail.com
               </a>
               .
             </p>

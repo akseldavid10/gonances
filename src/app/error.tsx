@@ -24,7 +24,7 @@ export default function GlobalError({
       </h1>
       <p className="mt-3 max-w-[48ch] text-[15px] leading-relaxed text-ink-soft">
         Algo falló al cargar esta pantalla. Tus movimientos están a salvo:
-        vuelve a intentarlo y, si sigue igual, escríbenos a hola@gonances.app.
+        vuelve a intentarlo y, si sigue igual, escríbenos a gonances1@gmail.com.
       </p>
       {error.digest ? (
         <p className="num mt-3 text-[12px] text-ink-faint">

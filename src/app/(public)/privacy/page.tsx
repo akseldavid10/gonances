@@ -119,10 +119,10 @@ export default function PrivacyPage() {
               Para ejercer cualquiera de estos derechos o preguntar algo,
               escribe a{" "}
               <a
-                href="mailto:hola@gonances.app"
+                href="mailto:gonances1@gmail.com"
                 className="text-ink underline underline-offset-4"
               >
-                hola@gonances.app
+                gonances1@gmail.com
               </a>
               .
             </p>

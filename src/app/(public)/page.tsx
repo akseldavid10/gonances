@@ -37,11 +37,11 @@ const steps = [
   },
   {
     title: "Anota el movimiento",
-    body: "Monto, categoría, fecha y una nota si quieres. Tres campos y listo, desde cualquier pantalla.",
+    body: "Cuanto fue, categoría, fecha y una descripción si quieres. Tres campos y listo, desde cualquier pantalla.",
   },
   {
-    title: "Lee tu mes",
-    body: "El balance se rehace solo y el gráfico te dice en qué se fue el dinero antes de que termine el mes.",
+    title: "Mira como fue tu mes",
+    body: "El cuentas se hacen solas y el gráfico te dice en qué se fue el dinero antes de que termine el mes.",
   },
 ];
 
@@ -84,12 +84,13 @@ export default async function LandingPage() {
         <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.06fr)] lg:gap-16">
           <div>
             <h1 className="font-display text-[clamp(2.5rem,6.2vw,4.1rem)] leading-[1.02] tracking-[-0.02em] text-ink">
-              Anota lo que entra, lo que sale y a dónde se fue.
+              Anota lo que ganas, lo que gastas, en qué y cuándo.
             </h1>
             <p className="mt-6 max-w-[46ch] text-[17px] leading-relaxed text-ink-soft">
-              Gonances es tu libro de cuentas personal. Cada movimiento queda en
-              su categoría, el saldo se rehace solo y el mes termina explicado
-              en un gráfico. Sin planillas.
+              Gonances es tu libro de cuentas personal. Cada gasto o ganancia
+              queda registrado, puedes dividirlos en categorías si quieres, el
+              saldo se actualiza solo y el mes termina explicado en un gráfico
+              sobre cómo usaste tu dinero.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <ButtonLink href="/register" size="lg">
@@ -177,7 +178,7 @@ export default async function LandingPage() {
               Así se lee tu mes
             </h2>
             <p className="mt-3 max-w-[52ch] text-[15px] leading-relaxed text-ink-soft">
-              Datos ficticios de seis meses completos, hasta{" "}
+              Estos son datos ficticios de seis meses completos, hasta{" "}
               {monthLabel(year, month)}. Se actualizan cada mes. Pasa el cursor
               por encima para ver los montos.
             </p>
