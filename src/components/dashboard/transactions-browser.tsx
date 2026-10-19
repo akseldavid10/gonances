@@ -379,7 +379,7 @@ export function TransactionsBrowser() {
       </div>
 
       <div className="overflow-hidden rounded-lg border border-rule bg-sheet">
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className="w-full min-w-160 border-collapse text-left">
             <caption className="sr-only">
               Movimientos filtrados, del más reciente al más antiguo
