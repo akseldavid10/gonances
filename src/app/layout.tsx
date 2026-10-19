@@ -111,6 +111,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           name="google-site-verification"
           content="f8hfedjZGhqoVpKQO6fnzHHBcMqRDR82e0oziK9I84A"
         />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=5.0"
+        />
         <Analytics />
       </head>
       <body className="min-h-full flex flex-col">
