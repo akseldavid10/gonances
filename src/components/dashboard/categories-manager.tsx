@@ -15,20 +15,7 @@ import { useToast } from "@/components/ui/toast";
 import { type Category, MAX_CUSTOM_CATEGORIES, type TxType } from "@/lib/data";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
-// El nombre es lo que oye el lector de pantalla: un hex no le dice nada.
-const SWATCH_NAMES: Record<string, string> = {
-  "#c4611a": "Naranja",
-  "#4fbfa8": "Turquesa",
-  "#8e2a5f": "Ciruela",
-  "#d9a81e": "Mostaza",
-  "#1f4e9c": "Azul",
-  "#e07a88": "Rosa",
-  "#3c6b1c": "Oliva",
-  "#a98ce8": "Lavanda",
-  "#1f6b4a": "Verde",
-  "#6d7c72": "Gris",
-};
-const SWATCHES = Object.keys(SWATCH_NAMES);
+const DEFAULT_CATEGORY_COLOR = "#6d7c72";
 
 export function CategoriesManager({ items }: { items: Category[] }) {
   const toast = useToast();
@@ -254,7 +241,7 @@ function CategoryModal({
 }) {
   const [name, setName] = useState("");
   const [type, setType] = useState<TxType>("EXPENSE");
-  const [color, setColor] = useState(SWATCHES[0]);
+  const [color, setColor] = useState(DEFAULT_CATEGORY_COLOR);
   const [icon, setIcon] = useState<IconName>("ShoppingBasket");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -266,7 +253,7 @@ function CategoryModal({
     if (open) {
       setName(editing?.name ?? "");
       setType(editing?.type ?? "EXPENSE");
-      setColor(editing?.color ?? SWATCHES[0]);
+      setColor(editing?.color ?? DEFAULT_CATEGORY_COLOR);
       setIcon((editing?.icon as IconName) ?? "ShoppingBasket");
     }
   }
@@ -366,32 +353,29 @@ function CategoryModal({
 
         <fieldset>
           <legend className="mb-1.5 text-[13px] font-medium text-ink-soft">
-            Tinta
+            Color
           </legend>
-          <div className="flex flex-wrap gap-2">
-            {SWATCHES.map((s) => (
+          <div className="flex items-center gap-3">
+            <input
+              id="cat-color"
+              type="color"
+              value={color}
+              onChange={(event) => setColor(event.target.value)}
+              aria-label="Elige cualquier color"
+              title="Elige cualquier color"
+              className="size-11 cursor-pointer rounded border border-rule bg-sheet p-1"
+            />
+            <div>
               <label
-                key={s}
-                className={`flex size-9 cursor-pointer items-center justify-center rounded border-2 transition-colors ${
-                  color === s ? "border-ink" : "border-transparent"
-                }`}
+                htmlFor="cat-color"
+                className="cursor-pointer text-[14px] font-medium text-ink"
               >
-                <input
-                  type="radio"
-                  name="cat-color"
-                  value={s}
-                  checked={color === s}
-                  onChange={() => setColor(s)}
-                  className="sr-only"
-                />
-                <span
-                  className="size-6 rounded-sm"
-                  style={{ backgroundColor: s }}
-                  aria-hidden="true"
-                />
-                <span className="sr-only">{SWATCH_NAMES[s]}</span>
+                Elige cualquier color
               </label>
-            ))}
+              <p className="mt-0.5 font-mono text-[12px] uppercase text-ink-faint">
+                {color}
+              </p>
+            </div>
           </div>
         </fieldset>
 
