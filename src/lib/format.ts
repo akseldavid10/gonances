@@ -2,15 +2,20 @@ import type { CurrencyCode } from "./currencies";
 import type { Transaction } from "./data";
 
 const currencyFormats = new Map<string, Intl.NumberFormat>();
+const currencySuffixes: Record<CurrencyCode, string> = {
+  USD: "$US",
+  EUR: "€",
+  JPY: "¥",
+  GBP: "£",
+  COP: "$COP",
+};
 
 function currencyFormat(currency: CurrencyCode, compact = false) {
   const key = `${currency}:${compact}`;
   let format = currencyFormats.get(key);
   if (!format) {
-    format = new Intl.NumberFormat("es-ES", {
-      style: "currency",
-      currency,
-      currencyDisplay: "symbol",
+    format = new Intl.NumberFormat("es-CO", {
+      style: "decimal",
       ...(compact
         ? { minimumFractionDigits: 0, maximumFractionDigits: 0 }
         : currency === "JPY"
@@ -23,12 +28,20 @@ function currencyFormat(currency: CurrencyCode, compact = false) {
   return format;
 }
 
-/** Monto con separadores y dos decimales: 1.240,50 o -$1.240,50 */
-export function money(amount: number, currency: CurrencyCode = "USD"): string {
-  return currencyFormat(currency).format(amount);
+function formattedAmount(
+  amount: number,
+  currency: CurrencyCode,
+  compact = false,
+) {
+  return `${currencyFormat(currency, compact).format(amount)} ${currencySuffixes[currency]}`;
 }
 
-/** Monto con signo explícito para movimientos: +$1.240,50 / −$320,00 */
+/** Monto con la moneda al final: 1.240,50 $US o -1.240,50 $US. */
+export function money(amount: number, currency: CurrencyCode = "USD"): string {
+  return formattedAmount(amount, currency);
+}
+
+/** Monto con signo explícito para movimientos: +1.240,50 $US / −320,00 $US. */
 export function signedMoney(
   amount: number,
   type: "INCOME" | "EXPENSE",
@@ -37,12 +50,12 @@ export function signedMoney(
   return `${type === "INCOME" ? "+" : "−"}${money(amount, currency)}`;
 }
 
-/** Monto redondeado para ejes de gráficos: $1.240 */
+/** Monto redondeado para ejes de gráficos: 1.240 $US. */
 export function moneyShort(
   amount: number,
   currency: CurrencyCode = "USD",
 ): string {
-  return currencyFormat(currency, true).format(Math.round(amount));
+  return formattedAmount(Math.round(amount), currency, true);
 }
 
 const MONTHS = [
