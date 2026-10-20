@@ -1,3 +1,4 @@
+import { LanguageSwitch } from "@/components/provider/language-provider";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { ButtonLink } from "@/components/ui/button";
 import { Logo } from "@/components/ui/logo";
@@ -26,6 +27,7 @@ export function SiteHeader() {
         </nav>
         <div className="ml-auto flex items-center gap-2 md:ml-0">
           <ThemeToggle />
+          <LanguageSwitch />
           <ButtonLink href="/login" variant="quiet" size="sm">
             Iniciar sesión
           </ButtonLink>

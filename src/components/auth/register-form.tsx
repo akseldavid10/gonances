@@ -4,6 +4,7 @@ import { Check } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type SubmitEvent, useState } from "react";
+import { useLanguage } from "@/components/provider/language-provider";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 
@@ -22,6 +23,7 @@ const rules = [
 
 export function RegisterForm() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -158,18 +160,18 @@ export function RegisterForm() {
           className="mt-0.5 size-4 accent-ink"
         />
         <span>
-          Acepto los{" "}
+          {t("Acepto los")}{" "}
           <Link href="/terms" className="text-ink underline underline-offset-4">
-            términos y condiciones
+            {t("términos y condiciones")}
           </Link>{" "}
-          y la{" "}
+          {t("y la")}{" "}
           <Link
             href="/privacy"
             className="text-ink underline underline-offset-4"
           >
-            política de privacidad
+            {t("política de privacidad")}
           </Link>
-          .
+          {t(".")}
         </span>
       </label>
 

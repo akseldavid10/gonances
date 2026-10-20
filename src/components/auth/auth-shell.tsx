@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { LanguageSwitch } from "@/components/provider/language-provider";
 import { Logo } from "@/components/ui/logo";
 import { googleLogin } from "@/lib/login";
 
@@ -15,7 +16,10 @@ export function AuthShell({
   footer?: ReactNode;
 }) {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center px-5 py-12 sm:py-16">
+    <main className="relative flex flex-1 flex-col items-center justify-center px-5 py-12 sm:py-16">
+      <div className="absolute top-4 right-5">
+        <LanguageSwitch />
+      </div>
       <Logo />
       <div className="mt-8 w-full max-w-105 rounded-lg border border-rule bg-sheet px-6 py-7 sm:px-8 sm:py-8">
         <h1 className="font-display text-[27px] leading-tight tracking-[-0.01em] text-ink">

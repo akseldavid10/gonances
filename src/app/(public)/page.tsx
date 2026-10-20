@@ -64,7 +64,7 @@ const faqs = [
   },
   {
     q: "¿Puedo trabajar con más de una moneda?",
-    a: "Sí. Al entrar puedes ver y anotar tu libro en dólares, euros, yenes, libras esterlinas o pesos colombianos. La tasa se actualiza cada hora.",
+    a: "Sí. Puedes ver y anotar tu libro en dólares estadounidenses, euros, yenes japoneses, libras esterlinas o pesos colombianos. La tasa se actualiza cada hora.",
   },
 ];
 
@@ -165,6 +165,42 @@ export default async function LandingPage() {
             </li>
           ))}
         </ol>
+      </section>
+
+      {/* ── Monedas disponibles ───────────────────────────────────────── */}
+      <section className="mx-auto max-w-290 border-t border-rule px-5 py-12 sm:px-8 sm:py-14">
+        <div className="grid gap-6 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] md:items-center">
+          <div>
+            <h2 className="font-display text-[clamp(1.7rem,3vw,2.3rem)] leading-tight tracking-[-0.015em] text-ink">
+              Tu libro, en la moneda que prefieras
+            </h2>
+            <p className="mt-3 max-w-[50ch] text-[15px] leading-relaxed text-ink-soft">
+              Puedes cambiar la moneda de tu libro cuando quieras. Elige entre
+              estas cinco opciones:
+            </p>
+          </div>
+          <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {[
+              ["USD", "Dólar estadounidense"],
+              ["EUR", "Euro"],
+              ["JPY", "Yen japonés"],
+              ["GBP", "Libra esterlina"],
+              ["COP", "Peso colombiano"],
+            ].map(([code, name]) => (
+              <li
+                key={code}
+                className="rounded border border-rule bg-sheet px-3 py-2.5"
+              >
+                <span className="block text-[12px] font-semibold tracking-wide text-ink-faint">
+                  {code}
+                </span>
+                <span className="mt-0.5 block text-[14px] font-medium text-ink">
+                  {name}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </section>
 
       {/* ── Demostración con datos de una cuenta de ejemplo ───────────── */}

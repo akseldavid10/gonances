@@ -20,6 +20,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { LanguageSwitch } from "@/components/provider/language-provider";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/ui/logo";
 import { ToastProvider, useToast } from "@/components/ui/toast";
@@ -95,6 +97,8 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
             </p>
 
             <div className="ml-auto flex items-center gap-3">
+              <ThemeToggle />
+              <LanguageSwitch />
               <Button
                 onClick={() => {
                   if (pathname !== "/transactions") {

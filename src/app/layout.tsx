@@ -1,25 +1,15 @@
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
-import { Bodoni_Moda, IBM_Plex_Sans } from "next/font/google";
+import "@fontsource-variable/bodoni-moda";
+import "@fontsource-variable/bodoni-moda/wght-italic.css";
+import "@fontsource-variable/ibm-plex-sans";
+import { LanguageProvider } from "@/components/provider/language-provider";
 import {
   ThemeProvider,
   themeBootstrapScript,
 } from "@/components/theme/theme-provider";
 import { timeZoneCookieScript } from "@/lib/user-today";
 import "./globals.css";
-
-const bodoni = Bodoni_Moda({
-  variable: "--font-bodoni",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  style: ["normal", "italic"],
-});
-
-const plex = IBM_Plex_Sans({
-  variable: "--font-plex",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -46,7 +36,7 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     type: "website",
-    locale: "es_ES",
+    locale: "es_CO",
     siteName: "Gonances",
     title: "Gonances · Tu libro de cuentas personal",
     description:
@@ -100,7 +90,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       // El script de arranque cambia este atributo antes de que React hidrate.
       data-theme="light"
       suppressHydrationWarning
-      className={`${bodoni.variable} ${plex.variable} h-full antialiased`}
+      className="h-full antialiased"
     >
       <head>
         {/* biome-ignore lint/security/noDangerouslySetInnerHtml: script propio, sin datos del usuario, que debe correr antes del primer pintado */}
@@ -118,7 +108,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Analytics />
       </head>
       <body className="min-h-full flex flex-col">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <LanguageProvider>{children}</LanguageProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

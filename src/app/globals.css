@@ -61,8 +61,8 @@
   --color-chart-expense: #a32438;
   --color-chart-other: #65655f;
 
-  --font-display: var(--font-bodoni), Georgia, "Times New Roman", serif;
-  --font-sans: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Bodoni Moda Variable", Georgia, "Times New Roman", serif;
+  --font-sans: "IBM Plex Sans Variable", ui-sans-serif, system-ui, sans-serif;
 
   --radius-*: initial;
   --radius-sm: 2px;
